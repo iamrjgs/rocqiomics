@@ -7,19 +7,19 @@ import shutil
 import pandas as pd
 import pingouin as pg
 import numpy as np
+import scipy
 
 from monai.data import itk_torch_bridge
 
 import itk
 import SimpleITK as sitk
 
-from rocqiomics.constants import CONSTANTS
-
 def sort_by_numerical_suffix(case_ids):
     if isinstance(case_ids, list):
         return sorted(case_ids, key=lambda x: int(re.search(r"\d+$", x).group()))
     else:
-        return case_ids.loc[sort_by_numerical_suffix(case_ids.index.to_list())]
+        ordered_ids = sort_by_numerical_suffix(case_ids.index.to_list())
+        return case_ids.loc[ordered_ids]
 
 def prepare_data_dicts(
         base_dirpath='',
@@ -206,30 +206,32 @@ def unpack_old_directory_format(
             for md in modalities:
                 old_image_path = os.path.join(modalities_path, md, f'{md}.{image_extension}')
 
-                new_image_name = f'{tp}_{md}_{case_id}.{image_extension}'
-                new_image_path = os.path.join(new_imaging_dirpath, new_image_name)
-                
-                if copy_images:
-                    shutil.copy(old_image_path, new_image_path)
+                if os.path.exists(old_image_path):
 
-                masks_folder = os.path.join(modalities_path, md)
-                if len(segmentations_folder) > 0:
-                    masks_folder = os.path.join(modalities_path, md, segmentations_folder)
-
-                for mask in mask_names:
-
-                    new_mask_dir = os.path.join(new_masks_dirpath, mask)
-                    if not os.path.exists(new_mask_dir):
-                        os.makedirs(new_mask_dir)
-
-                    old_mask_path = os.path.join(masks_folder, f'{mask}.{segmentation_extension}')
+                    new_image_name = f'{tp}_{md}_{case_id}.{image_extension}'
+                    new_image_path = os.path.join(new_imaging_dirpath, new_image_name)
                     
-                    if os.path.exists(old_mask_path):
-                        new_mask_name = f'{tp}_{md}_{mask}_{case_id}.{segmentation_extension}'
-                        new_mask_path = os.path.join(new_mask_dir, new_mask_name)
+                    if copy_images:
+                        shutil.copy(old_image_path, new_image_path)
 
-                        if copy_masks:
-                            shutil.copy(old_mask_path, new_mask_path)
+                    masks_folder = os.path.join(modalities_path, md)
+                    if len(segmentations_folder) > 0:
+                        masks_folder = os.path.join(modalities_path, md, segmentations_folder)
+
+                    for mask in mask_names:
+
+                        new_mask_dir = os.path.join(new_masks_dirpath, mask)
+                        if not os.path.exists(new_mask_dir):
+                            os.makedirs(new_mask_dir)
+
+                        old_mask_path = os.path.join(masks_folder, f'{mask}.{segmentation_extension}')
+                        
+                        if os.path.exists(old_mask_path):
+                            new_mask_name = f'{tp}_{md}_{case_id}.{segmentation_extension}'
+                            new_mask_path = os.path.join(new_mask_dir, new_mask_name)
+
+                            if copy_masks:
+                                shutil.copy(old_mask_path, new_mask_path)
 
 def copy_images_from_analyze_hdr_folder(
         hdr_folder='',
@@ -341,7 +343,7 @@ def load_feature_set(
         exclude_augmented_cases=False,
         drop_diagnostic_cols=True,
         drop_metadata_cols=False,
-):
+        ):
     feature_set_filename = '_'.join(filter(None, [timepoint, modality, mask_name, suffix])) + '.xlsx'
     feature_set_filepath = os.path.join(features_dirpath, feature_set_filename)
 
@@ -356,7 +358,12 @@ def load_feature_set(
         df = df.loc[:, ~df.columns.astype(str).str.contains('diagnostics')]
     
     if drop_metadata_cols:
-        df = df.drop(columns=CONSTANTS['metadata_columns'])
+        df = df.drop(columns=[
+            'timepoint',
+            'modality',
+            'mask_name',
+            'augmentation'
+        ])
 
     return df
 
@@ -414,13 +421,18 @@ def augmentation_average(df, col_id='case_id'):
     
     groupby_cols = [col_id]
 
-    if len(np.unique(df['timepoint'])) > 1:
-        groupby_cols.append('timepoint')
-    
-    if len(np.unique(df['modality'])) > 1:
-        groupby_cols.append('modality')
+    tp_col = 'timepoint'
+    md_col = 'modality'
 
-    return df.groupby(groupby_cols).apply(lambda x: x.mean(numeric_only=True))
+    if tp_col in df.columns:
+        if len(np.unique(df[tp_col])) > 1:
+            groupby_cols.append(tp_col)
+    
+    if md_col in df.columns:
+        if len(np.unique(df[md_col])) > 1:
+            groupby_cols.append(md_col)
+
+    return df.groupby(groupby_cols).mean(numeric_only=True).reset_index().set_index(col_id)
 
 def select_feature_classes_and_filters(df,
                                        feature_classes=None,
@@ -473,7 +485,6 @@ def get_features_icc(df,
                      raters='timepoint',
                      mask_name='',
                      modality='',
-                     icc_metric='icc',
                      id_col='case_id'
                      ):
     new_df = df
@@ -499,13 +510,10 @@ def get_features_icc(df,
                                     ratings=feature,
                                     nan_policy='omit'
                                     )
-        
-        if icc_metric == 'ci_lower_bound':
-            icc_value = icc_df.loc[:,'CI95%'][0][0]
-        else:
-            icc_value = icc_df.loc[:,'ICC'][1]
-
-        ICCs[feature] = abs(round(icc_value, 4))
+        ICCs[feature] = {
+            'ICC' : np.round(icc_df.loc[:,'ICC'][1], 4),
+            'CI95%' : np.round(icc_df.loc[:,'CI95%'][0], 4)
+        }
 
     return ICCs    
 
@@ -514,7 +522,7 @@ def get_features_with_icc_above_cutoff(df,
                                        raters='timepoint',
                                        mask_name='',
                                        modality='',
-                                       icc_metric='icc',
+                                       icc_metric='ci_lower_bound',
                                        id_col='case_id'
                                        ):
     iccs = get_features_icc(df, raters, mask_name, modality, 
@@ -523,3 +531,48 @@ def get_features_with_icc_above_cutoff(df,
     
     passing_features = [feature for feature, icc in iccs.items() if icc > icc_cutoff]
     return passing_features
+
+def compare_averaged_vs_baseline_features(base_df,
+                                          ave_df,
+                                          icc_metric
+                                          ):
+    
+    base_icc = get_features_icc(base_df, raters='timepoint', icc_metric=icc_metric)
+    ave_icc = get_features_icc(ave_df, raters='timepoint', icc_metric=icc_metric)
+
+def get_significant_features(df,
+                             features,
+                             statistical_test='t-test',
+                             group_by=None,
+                             alpha=0.05,
+                             multiple_testing_correction=None
+                             ):
+    
+    pvalues = {}
+
+    feat = np.intersect1d(df.columns, features)
+    num_features = len(feat)
+
+    for feature in feat:
+        pval = 1000.0
+
+        if statistical_test == 't-test':
+            pval = scipy.stats.ttest_ind(*df.groupby(group_by)[feature].apply(lambda x: x.values)).pvalue
+        
+        if statistical_test == 'U-test':
+            pval = scipy.stats.mannwhitneyu(*df.groupby(group_by)[feature].apply(lambda x: x.values)).pvalue
+        
+        pvalues[feature] = pval
+        
+        if multiple_testing_correction == 'bonferroni':
+            alpha /= num_features
+
+        if multiple_testing_correction == 'holm':
+            ordered_pvals = sorted(pvalues.values())
+            large_pvalues = [ordered_pvals[i] > alpha / (1 + num_features - i) for i in range(num_features)]
+            min_index = np.min([i for i in range(num_features) if large_pvalues[i]])
+            alpha = ordered_pvals[min_index]
+        
+
+    significant = {key:value for key, value in pvalues.items() if value < alpha}
+    return pd.DataFrame(significant.items(), columns=['feature', 'pvalue'])

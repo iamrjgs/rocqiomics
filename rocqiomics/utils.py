@@ -13,8 +13,6 @@ from monai.data import itk_torch_bridge
 import itk
 import SimpleITK as sitk
 
-from rocqiomics.constants import CONSTANTS
-
 def get_sitk_image_metadata(image):
      keys = image.GetMetaDataKeys()
      return {key : image.GetMetaData(key) for key in keys}

@@ -28,6 +28,8 @@ class AugmentedDataset(monai.data.Dataset):
         self.preprocessing = preprocessing
         self.augmentations = augmentations
         self.num_augmentations = len(augmentations)
+
+        self.loaded_data = None
     
     def __len__(self):
         return len(self.data) * (self.num_augmentations + 1)
@@ -37,12 +39,14 @@ class AugmentedDataset(monai.data.Dataset):
         aug_index = idx % (self.num_augmentations + 1)
 
         # Load image/mask (plus metadata)
-        loaded_data = self.load_transform(self.data[image_index])
-
+        if aug_index == 0:
+            self.loaded_data = self.load_transform(self.data[image_index])
+            loaded_data = self.loaded_data
+        
         # If aug_index > 0, use corresponding augmentation; otherwise proceed with original image/mask
         if aug_index > 0:
             aug_transform = self.augmentations[aug_index-1]
-            loaded_data = aug_transform(loaded_data)    
+            loaded_data = aug_transform(self.loaded_data)    
     
         # Add augmentation index to metadata
         if 'metadata' in loaded_data.keys():

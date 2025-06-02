@@ -14,7 +14,7 @@ import SimpleITK as sitk
 import monai
 import torch
 
-import rocqiomics
+from rocqiomics.constants import PACKAGE_NAME
 from rocqiomics.utils import (
     tensor_to_sitk,
     split_dataframe_by_unique_values_in_columns
@@ -46,10 +46,70 @@ class Rocqiomics:
                 reader: str="ITKReader",
                 save_results: bool=True,
                 save_dirpath: Optional[str]=None,
+                save_suffix: str="",
+                save_results_to_existing_file: bool=False,
                 save_by_columns: Optional[List[str]]=None,
-                save_filename_suffix: str="",
-                save_results_to_existing_file: bool=False
-                ):    
+                ):   
+        
+        """
+        Pyradiomics-based medical image radiomics feature extraction with Monai-enabled preprocessing and augmentation.
+
+        *** IMPORTANT ***
+        This package disables all Pyradiomics preprocessing steps (intensity normalization, respacing, etc.) by default.
+        We recommend these and any other preprocessing steps be included as monai transforms in the preprocessing keyword.
+        The exception to this is the gray-level discretization step (whether fixed bin width or fixed bin size), which is 
+        unavoidably performed by Pyradiomics at extraction time prior to extracting texture features.
+
+        Attributes:
+            data_dicts (Optional[List[Dict]]): List of dictionaries containing case data. Each data dict should have fields:
+                - image (Pathlike): Path to image [REQUIRED]
+                - mask (Pathlike): Path to segmentation mask [REQUIRED]
+                - case_id (str): String id assigned to case. Can also be called whatever you set as the id_col [OPTIONAL]
+                - metadata (dict): Dictionary containing additional metadata fields [OPTIONAL]
+            
+            load_transform (Optional[monai.transforms.Transform]): Custom transform for image/mask loading. Leave as None
+            to use default loading transform (should suffice for 99% of use-cases).
+
+            preprocessing (Optional[monai.transforms.Transform]): Preprocessing transform, applied to each image prior to extraction.
+            Use monai.transforms.Compose to concatenate multiple transforms.
+
+            augmentations (List[Optional[monai.transforms.Transform]]): List of augmentation transforms; an additional image is created for each
+            augmentation transform and each image (i.e. these increase dataset size). 
+            Note: This adds an additional metadata field called `augmentation`
+
+            voxel_based (bool): Whether to extract feature dataframes (False) or voxel-wise feature maps (True).
+
+            bin_count (Optional[int]): Number of bins if discretization with fixed bin count.
+            bin_width (Optional[float]): Width of bins if discretization with fixed bin size (default: 25.0).
+
+            feature_classes (List[str]): List of radiomics feature classes to extract.
+            filter_types (List[str]): Types of image filters applied before extraction.
+            filter_settings_by_type (Dict): Configuration of filter settings per filter type.
+            extraction_settings_yaml_filepath (Optional[str]): YAML file path with extraction parameters.
+            IMPORTANT: ONLY USE IF YOU WISH TO OVERRIDE THE PREVIOUS SETTINGS WITH THE YAML FILE.
+
+            case_ids (Optional[List[str]]): List of case_ids you want to filter by. Leave as None if extracting from all cases.
+            case_limit (Optional[int]): Maximum number of cases to process.
+
+            engine (str): Feature extraction engine (only Pyradiomics for now).
+            device (str): Processing device ("cpu" or "gpu").
+
+            logging_levels (Optional[Dict]): Logging settings for pipeline and extraction. 
+            Example: {'pipeline' : logging.INFO, 'extraction' : logging.WARNING}
+
+            label (int): Segmentation label ID used for feature extraction.
+            validate_inputs (bool): Whether to validate input data is valid.
+            id_col (str): Identifier column in metadata ("case_id" by default).
+            reader (str): Image reader type ("ITKReader" by default).
+
+            save_results (bool): Whether to save extracted results.
+            save_dirpath (Optional[str]): Directory path for saving outputs.
+            save_suffix (str): Suffix for saved filenames. For example, setting as 'test' appends '_test' to each saved file.
+            save_results_to_existing_file (bool): Whether to append results to an existing file.
+            save_by_columns (Optional[List[str]]): List of metadata columns by which to separate feature sets for saving as Excel file.
+            For example, setting as ['modality', 'timepoint'] will save a different feature set for each modality and timepoint
+            pair. Leave as None to save all extraction results into a single Excel file.
+        """
 
         # Initialize pipeline data containers
         self.results: List[Dict] = []
@@ -59,10 +119,10 @@ class Rocqiomics:
         # Set pipeline settings
         self.label: int = label
         self.id_col: str = id_col
-        self.logging_levels: Optional[Dict] = logging_levels or {'pipeline' : logging.INFO, 'extractor' : logging.ERROR}
         self.device: torch.device = self._set_device(device)
         
         # Initialize logging
+        self.logging_levels: Optional[Dict] = logging_levels or {'pipeline' : logging.INFO, 'extractor' : logging.ERROR}
         self.logger = self._set_loggers()
 
         # Set extraction settings
@@ -77,7 +137,7 @@ class Rocqiomics:
         # Set settings for results saving
         self.save_results: bool = save_results
         self.save_by_columns: List[str] = save_by_columns
-        self.save_filename_suffix: str = save_filename_suffix
+        self.save_suffix: str = save_suffix
         self.save_dirpath = save_dirpath or os.path.join(os.getcwd(), "Results")
         self.save_results_to_existing_file: bool = save_results_to_existing_file
         
@@ -95,7 +155,7 @@ class Rocqiomics:
         )
         
         # Set monai Dataset to handle loading, augmentation, and preprocessing
-        from .dataset import AugmentedDataset
+        from rocqiomics.dataset import AugmentedDataset
         self.dataset = AugmentedDataset(
             data=self.data_dicts,
             load_transform=self.load_transform,
@@ -104,7 +164,7 @@ class Rocqiomics:
         )
 
         # Set radiomics feature extractor
-        from .feature_extractor import FeatureExtractor
+        from rocqiomics.feature_extractor import FeatureExtractor
         self.extractor = FeatureExtractor(
             engine=self.engine,
             label=self.label,
@@ -116,7 +176,6 @@ class Rocqiomics:
             extraction_settings_yaml_filepath=extraction_settings_yaml_filepath,
         )
 
-
     def __len__(self):
         return len(self.dataset)
     
@@ -127,8 +186,7 @@ class Rocqiomics:
         case_id, image, mask, metadata = [case.get(x) for x in [self.id_col, "image", "mask", "metadata"]]
     
         # Convert tensors to SimpleITK images expected by Pyradiomics
-        image = tensor_to_sitk(image)
-        mask = tensor_to_sitk(mask)
+        image, mask = tensor_to_sitk(image), tensor_to_sitk(mask)
         
         # Extract feature vector or map depending on voxel_based extraction mode
         extraction_results = self._extract_features(image, mask)
@@ -341,7 +399,6 @@ class Rocqiomics:
         return [key for key, value in key_tests.items() if not value]
     
     def _file_existence_tests(self, case):
-
         file_existence_tests = {
             'image file exists' : os.path.exists(case['image']),
             'mask file exists' : os.path.exists(case['mask']),
@@ -367,7 +424,7 @@ class Rocqiomics:
                            include_current_date=False
                            ):
         save_filepath = ''
-        save_filename_pieces = [self.save_filename_suffix]
+        save_filename_pieces = [self.save_suffix]
 
         if include_current_date:
             save_filename_pieces.insert(0, datetime.today().strftime('%m%d%y'))
@@ -425,7 +482,9 @@ class Rocqiomics:
         extraction_logging_level = self.logging_levels.get('extraction', logging.WARNING)
 
         # Set pipeline logging settings
-        logger_obj = logging.getLogger(rocqiomics.constants.PACKAGE_NAME)
+        logger_obj = logging.getLogger(PACKAGE_NAME)
+        if logger_obj.hasHandlers():
+            logger_obj.handlers.clear()
         logger_obj.setLevel(pipeline_logging_level)
         console_handler = logging.StreamHandler(stream=sys.stdout)
         console_handler.setLevel(pipeline_logging_level) 
@@ -449,6 +508,8 @@ class Rocqiomics:
                      ]:
             pyradiomics_format = "Pyradiomics %(levelname)s:\t %(message)s"
             pyradiomics_logger = logging.getLogger(name)
+            if pyradiomics_logger.hasHandlers():
+                pyradiomics_logger.handlers.clear()
             pyradiomics_logger.setLevel(extraction_logging_level)
             console_handler = logging.StreamHandler(stream=sys.stdout)
             console_handler.setLevel(extraction_logging_level) 
@@ -461,7 +522,6 @@ class Rocqiomics:
     def _log_case_data(self, idx, case, start_time):
         log_data = []
         last_idx = len(self) - 1
-        run_time = time.time() - start_time
 
         if self.id_col in case.keys():
             log_data.append(f'{self.id_col}: {case[self.id_col]}')
@@ -474,5 +534,6 @@ class Rocqiomics:
 
         log_txt = '\t'.join(log_data)
         
+        run_time = time.time() - start_time
         self.logger.info(f'Case {idx}/{last_idx} done in {run_time:.2f}s\t{log_txt}')
         self.logger.debug(case)
