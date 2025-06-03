@@ -5,7 +5,6 @@ import re
 import shutil
 
 import pandas as pd
-import pingouin as pg
 import numpy as np
 
 from monai.data import itk_torch_bridge

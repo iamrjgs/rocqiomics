@@ -14,7 +14,7 @@ import SimpleITK as sitk
 import monai
 import torch
 
-from rocqiomics.constants import PACKAGE_NAME
+from rocqiomics.package_constants import PACKAGE_NAME
 from rocqiomics.utils import (
     tensor_to_sitk,
     split_dataframe_by_unique_values_in_columns
@@ -62,10 +62,10 @@ class Rocqiomics:
 
         Attributes:
             data_dicts (Optional[List[Dict]]): List of dictionaries containing case data. Each data dict should have fields:
-                - image (Pathlike): Path to image [REQUIRED]
-                - mask (Pathlike): Path to segmentation mask [REQUIRED]
-                - case_id (str): String id assigned to case. Can also be called whatever you set as the id_col [OPTIONAL]
-                - metadata (dict): Dictionary containing additional metadata fields [OPTIONAL]
+                - image (Union[str, Path]): Path to image [REQUIRED]
+                - mask (Union[str, Path]): Path to segmentation mask [REQUIRED]
+                - case_id (Optional[str]): String id assigned to case. Can also be called whatever you set as the id_col [OPTIONAL]
+                - metadata (Optional[Dict]): Dictionary containing additional metadata fields [OPTIONAL]
             
             load_transform (Optional[monai.transforms.Transform]): Custom transform for image/mask loading. Leave as None
             to use default loading transform (should suffice for 99% of use-cases).
@@ -79,14 +79,14 @@ class Rocqiomics:
 
             voxel_based (bool): Whether to extract feature dataframes (False) or voxel-wise feature maps (True).
 
-            bin_count (Optional[int]): Number of bins if discretization with fixed bin count.
-            bin_width (Optional[float]): Width of bins if discretization with fixed bin size (default: 25.0).
+            bin_count (Optional[int]): Number of bins if performing gray-level discretization with fixed bin count (default: None)
+            bin_width (Optional[float]): Width of bins if performing gray-level discretization with fixed bin size (default: 25.0).
 
             feature_classes (List[str]): List of radiomics feature classes to extract.
             filter_types (List[str]): Types of image filters applied before extraction.
             filter_settings_by_type (Dict): Configuration of filter settings per filter type.
             extraction_settings_yaml_filepath (Optional[str]): YAML file path with extraction parameters.
-            IMPORTANT: ONLY USE IF YOU WISH TO OVERRIDE THE PREVIOUS SETTINGS WITH THE YAML FILE.
+            IMPORTANT: IF YOU USE THIS, THE YAML FILE SETTINGS WILL OVERRIDE ALL OTHER SETTINGS.
 
             case_ids (Optional[List[str]]): List of case_ids you want to filter by. Leave as None if extracting from all cases.
             case_limit (Optional[int]): Maximum number of cases to process.
@@ -100,7 +100,7 @@ class Rocqiomics:
             label (int): Segmentation label ID used for feature extraction.
             validate_inputs (bool): Whether to validate input data is valid.
             id_col (str): Identifier column in metadata ("case_id" by default).
-            reader (str): Image reader type ("ITKReader" by default).
+            reader (str): Monai image reader type ("ITKReader" by default).
 
             save_results (bool): Whether to save extracted results.
             save_dirpath (Optional[str]): Directory path for saving outputs.
@@ -492,7 +492,7 @@ class Rocqiomics:
         console_handler.setFormatter(formatter)
         logger_obj.addHandler(console_handler)
 
-        # Set logging settings for Pyradiomics loggers
+        # Override logging settings for Pyradiomics loggers
         for name in ['radiomics', 
                      'radiomics.generalinfo',
                      'radiomics.featureextractor', 

@@ -321,6 +321,7 @@ def embed_feature_map_in_image_geometry(reference_image, feature_map):
     # Define the region within the reference image where feature map should be pasted
     fmap_origin_idx = reference_image.TransformPhysicalPointToIndex(feature_map.GetOrigin())
     fmap_size = transposed_fmap.GetSize()
+    
     x0, x1 = fmap_origin_idx[1], fmap_origin_idx[1] + fmap_size[0]
     y0, y1 = fmap_origin_idx[2], fmap_origin_idx[2] + fmap_size[1]
     z0, z1 = fmap_origin_idx[0], fmap_origin_idx[0] + fmap_size[2]
