@@ -14,6 +14,8 @@ from monai.data import itk_torch_bridge
 import itk
 import SimpleITK as sitk
 
+from rocqiomics import Rocqiomics
+
 def sort_by_numerical_suffix(case_ids):
     if isinstance(case_ids, list):
         return sorted(case_ids, key=lambda x: int(re.search(r"\d+$", x).group()))
@@ -94,6 +96,7 @@ def prepare_data_dicts_from_old_format(
         image_extension='nrrd',
         segmentation_extension='seg.nrrd',
         segmentations_folder='',
+        label_column='Arm'
         ):
     """
     Prepare data_dicts for Rocqiomics from old directory format:
@@ -154,7 +157,7 @@ def prepare_data_dicts_from_old_format(
                                 seg_filepath = os.path.join(seg_folderpath, seg)
 
                                 # Prepare data dicts
-                                data_dicts.append({
+                                ddict = {
                                     'case_id' : case,
                                     'image' : image_filepath,
                                     'mask' : seg_filepath,
@@ -163,7 +166,15 @@ def prepare_data_dicts_from_old_format(
                                         'modality' : md,
                                         'timepoint' : tp
                                     }
-                                })
+                                }
+
+                                if subject_list_filepath is not None:
+                                    df = pd.read_excel(subject_list_filepath).set_index(id_col)
+                                    if label_column in df.columns:
+                                        label = df.loc[case, label_column]
+                                        ddict['metadata']['label'] = label
+                
+                                data_dicts.append(ddict)
 
     return data_dicts, missing_images, missing_segmentations
 
@@ -336,6 +347,7 @@ def embed_feature_map_in_image_geometry(reference_image, feature_map):
 
 def load_feature_set(
         features_dirpath='',
+        feature_set_filename=None,
         mask_name='',
         timepoint='',
         modality='',
@@ -345,7 +357,10 @@ def load_feature_set(
         drop_diagnostic_cols=True,
         drop_metadata_cols=False,
         ):
-    feature_set_filename = '_'.join(filter(None, [timepoint, modality, mask_name, suffix])) + '.xlsx'
+    
+    if feature_set_filename is None:
+        feature_set_filename = '_'.join(filter(None, [timepoint, modality, mask_name, suffix])) + '.xlsx'
+    
     feature_set_filepath = os.path.join(features_dirpath, feature_set_filename)
 
     df = pd.read_excel(feature_set_filepath)
@@ -574,6 +589,48 @@ def get_significant_features(df,
             min_index = np.min([i for i in range(num_features) if large_pvalues[i]])
             alpha = ordered_pvals[min_index]
         
-
     significant = {key:value for key, value in pvalues.items() if value < alpha}
     return pd.DataFrame(significant.items(), columns=['feature', 'pvalue'])
+
+
+def compute_volumes(
+        data_dicts,
+        id_col='case_id',
+        save_results=True,
+        save_path=None,
+        ):
+    
+    pipeline = Rocqiomics(
+        data_dicts=data_dicts,
+        voxel_based=False,
+        feature_classes=['shape'],
+        id_col=id_col,
+        save_results=False,
+        validate_inputs=False
+    )
+    pipeline.run_pipeline()
+    df = pipeline.get_results()
+
+    keep_columns = ['original_shape_MeshVolume',
+                    'original_shape_VoxelVolume',
+                    'timepoint',
+                    'mask_name',
+                    'modality'
+                    ]
+    keep_columns = list(np.intersect1d(keep_columns, df.columns.to_list()))
+    
+    df = df[keep_columns]
+
+    if 'timepoint' in df.columns:
+        df = df.sort_values(by=['timepoint', id_col],
+                            key=lambda col: col if col.name == id_col else col.map(lambda tp: (int(re.findall('\d+', str(tp))[0]))),
+                            ascending=True
+                            )
+
+    if save_results:
+        df.to_excel(save_path)
+    
+    return df
+
+def plot_longitudinal_volumes(df):
+    pass

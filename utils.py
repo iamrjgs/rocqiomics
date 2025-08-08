@@ -1,9 +1,3 @@
-from datetime import datetime
-import json
-import os
-import re
-import shutil
-
 import pandas as pd
 import numpy as np
 
@@ -27,10 +21,17 @@ def itk_to_sitk(itk_image):
     new_sitk_image.SetDirection(itk.GetArrayFromMatrix(itk_image.GetDirection()).flatten()) 
     
     return new_sitk_image
+
+def resample_to_target_image(img, target, is_mask=False):
+        resampler = sitk.ResampleImageFilter()
+        resampler.SetReferenceImage(target)
+        resampler.SetDefaultPixelValue(0)
+        resampler.SetInterpolator(sitk.sitkNearestNeighbor if is_mask else sitk.sitkLinear)
+        return resampler.Execute(img)
                
 def split_dataframe_by_unique_values_in_columns(df, columns):
-    # Function to split dataframe into multiple dataframes with 
-    # based on unique values in specified columns
+    # Function to split dataframe into multiple dataframes separated by unique values in specified columns
+    # E.g. if 'timepoint' in columns, then separates into dataframes with unique timepoints
     unique_values = df[columns].drop_duplicates()
     unique_vals_result_dicts = []
 
@@ -43,3 +44,4 @@ def split_dataframe_by_unique_values_in_columns(df, columns):
         unique_vals_result_dicts.append(result_dict)
     
     return unique_vals_result_dicts
+

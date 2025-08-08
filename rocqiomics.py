@@ -3,7 +3,6 @@ import os
 import json
 import logging
 import time
-from tqdm import tqdm
 from typing import List, Dict, Optional
 import sys
 
@@ -17,7 +16,8 @@ import torch
 from rocqiomics.package_constants import PACKAGE_NAME
 from rocqiomics.utils import (
     tensor_to_sitk,
-    split_dataframe_by_unique_values_in_columns
+    split_dataframe_by_unique_values_in_columns,
+    resample_to_target_image
 )
 
 
@@ -55,20 +55,21 @@ class Rocqiomics:
         Pyradiomics-based medical image radiomics feature extraction with Monai-enabled preprocessing and augmentation.
 
         *** IMPORTANT ***
-        This package disables all Pyradiomics preprocessing steps (intensity normalization, respacing, etc.) by default.
-        We recommend these and any other preprocessing steps be included as monai transforms in the preprocessing keyword.
+        This package disables all Pyradiomics preprocessing steps (intensity normalization, resampling, etc.) by default.
+        We recommend these and any other preprocessing steps be implemented with monai transforms in the preprocessing keyword.
         The exception to this is the gray-level discretization step (whether fixed bin width or fixed bin size), which is 
-        unavoidably performed by Pyradiomics at extraction time prior to extracting texture features.
+        unavoidably performed by Pyradiomics at extraction time prior to extracting texture features. You can optionally turn 
+        on Pyradiomics settings by providing a path to a Pyradiomics settings YAML file in `extraction_settings_yaml_filepath`.
 
-        Attributes:
+        Parameters:
             data_dicts (Optional[List[Dict]]): List of dictionaries containing case data. Each data dict should have fields:
                 - image (Union[str, Path]): Path to image [REQUIRED]
                 - mask (Union[str, Path]): Path to segmentation mask [REQUIRED]
-                - case_id (Optional[str]): String id assigned to case. Can also be called whatever you set as the id_col [OPTIONAL]
-                - metadata (Optional[Dict]): Dictionary containing additional metadata fields [OPTIONAL]
+                - case_id (Optional[str]): String id assigned to case. Will be called whatever id_col is set as  [OPTIONAL]
+                - metadata (Optional[Dict]): Dictionary containing additional metadata fields (e.g. label, modality, timepoint) [OPTIONAL]
             
             load_transform (Optional[monai.transforms.Transform]): Custom transform for image/mask loading. Leave as None
-            to use default loading transform (should suffice for 99% of use-cases).
+            to use default loading transform.
 
             preprocessing (Optional[monai.transforms.Transform]): Preprocessing transform, applied to each image prior to extraction.
             Use monai.transforms.Compose to concatenate multiple transforms.
@@ -85,8 +86,7 @@ class Rocqiomics:
             feature_classes (List[str]): List of radiomics feature classes to extract.
             filter_types (List[str]): Types of image filters applied before extraction.
             filter_settings_by_type (Dict): Configuration of filter settings per filter type.
-            extraction_settings_yaml_filepath (Optional[str]): YAML file path with extraction parameters.
-            IMPORTANT: IF YOU USE THIS, THE YAML FILE SETTINGS WILL OVERRIDE ALL OTHER SETTINGS.
+            extraction_settings_yaml_filepath (Optional[str]): YAML file path with extraction parameters. IMPORTANT: IF YOU USE THIS, THE YAML FILE SETTINGS WILL OVERRIDE ALL OTHER SETTINGS.
 
             case_ids (Optional[List[str]]): List of case_ids you want to filter by. Leave as None if extracting from all cases.
             case_limit (Optional[int]): Maximum number of cases to process.
@@ -108,7 +108,7 @@ class Rocqiomics:
             save_results_to_existing_file (bool): Whether to append results to an existing file.
             save_by_columns (Optional[List[str]]): List of metadata columns by which to separate feature sets for saving as Excel file.
             For example, setting as ['modality', 'timepoint'] will save a different feature set for each modality and timepoint
-            pair. Leave as None to save all extraction results into a single Excel file.
+            pair. Leave as None to save all extraction results to a single Excel file.
         """
 
         # Initialize pipeline data containers
@@ -192,11 +192,10 @@ class Rocqiomics:
         extraction_results = self._extract_features(image, mask)
 
         # Handle results metadata addition and/or saving depending on voxel_based extraction mode
-        self._process_extraction_results(
-            case_id=case_id,
-            extraction_results=extraction_results,
-            metadata=metadata
-        )
+        if self.voxel_based:
+            self._handle_feature_map(case_id, extraction_results, metadata, image)
+        else:
+            self._handle_feature_vectors(case_id, extraction_results, metadata)
 
         # Log results
         self._log_case_data(idx, case, start_time)
@@ -214,6 +213,8 @@ class Rocqiomics:
         # Handle results saving when not extracting feature maps (those are handled separately)
         if not self.voxel_based and self.save_results:
             self.save_results_df()
+
+        return self.get_results()
     
     def get_data_dicts(self):
         return self.data_dicts
@@ -295,12 +296,6 @@ class Rocqiomics:
         else:
             df.to_excel(filepath)
             self.logger.info(f'Results saved to {filepath}')
-                
-    def _process_extraction_results(self, case_id, extraction_results, metadata):
-        if self.voxel_based:
-            self._handle_feature_maps(case_id, extraction_results, metadata)
-        else:
-            self._handle_feature_vectors(case_id, extraction_results, metadata)
 
     def _handle_feature_vectors(self, case_id, feature_vect, metadata=None):
         # Add case metadata to feature vector
@@ -311,11 +306,15 @@ class Rocqiomics:
 
         self.results.append(feature_vect)
 
-    def _handle_feature_maps(self, case_id, feature_vect, metadata=None):
+    def _handle_feature_map(self, case_id, feature_vect, metadata=None, original_image=None):
         # Separate feature maps from diagnostic data in results
         maps = {k:v for k,v in feature_vect.items() if isinstance(v, sitk.SimpleITK.Image)}
         case_data = {k:v for k,v in feature_vect.items() if k not in maps.keys()}
         
+        # Resample feature map to have the same geometry as the original image
+        if original_image is not None:
+            maps = {k:resample_to_target_image(v, original_image) for k,v in maps.items()}
+
         # Add case metadata to diagnostic data
         case_data[self.id_col] = case_id
         if metadata is not None:

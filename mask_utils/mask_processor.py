@@ -70,6 +70,11 @@ class MaskProcesser:
         peritumoral_mask = outer_rim | inner_rim
 
         return sitk.Cast(peritumoral_mask, sitk.sitkUInt8)
+    
+    def get_centroid_coordinates(self, mask):
+        stats = sitk.LabelShapeStatisticsImageFilter()
+        stats.Execute(mask)
+        return stats.GetCentroid(1)
 
     def obj_to_mask(self, obj_path, index=0, reference_image=None):
         obj_map = AnalyzeObjectMap(obj_path)

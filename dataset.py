@@ -2,7 +2,7 @@ import monai
 
 class AugmentedDataset(monai.data.Dataset):
     """
-    Dataset that decouples loading, augmentations from preprocessing transforms.
+    Dataset that decouples loading and augmentations from preprocessing transforms.
     
     In the standard monai.data.Dataset, preprocessing and augmentation are typically
     achieved by combining preprocessing and augmentation transforms into a single Compose
@@ -20,6 +20,9 @@ class AugmentedDataset(monai.data.Dataset):
     
     2) Preprocessing transforms are applied to all images, both the originals and augmented copies.
        They do not generate any additional images.
+
+    To implement standard monai.data.Dataset behavior, simply leave augmentations list empty,
+    set load_transform as the loading transform and put all other transforms in preprocessing.
     """
 
     def __init__(self, data, load_transform, preprocessing=None, augmentations=[]):
