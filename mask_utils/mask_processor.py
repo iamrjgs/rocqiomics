@@ -52,13 +52,17 @@ class MaskProcesser:
         erode.SetKernelRadius((erosion_radius, erosion_radius, 0))
         return erode.Execute(mask)
 
-    def create_peritumoral_mask(self, mask, dilation_radius=1, erosion_radius=1):
+    def create_peritumoral_mask(self, mask, dilation_radius=1, erosion_radius=1, dilation_mm=None):
         mask = sitk.Cast(mask, sitk.sitkUInt8)
 
         dilate = sitk.BinaryDilateImageFilter()
         erode = sitk.BinaryErodeImageFilter()
 
-        dilate.SetKernelRadius((dilation_radius, dilation_radius, 0))
+        radius = dilation_radius
+        if dilation_mm is not None:
+            radius = int(dilation_mm / np.min(mask.GetSpacing()))
+
+        dilate.SetKernelRadius((radius, dilation_radius, 0))
         erode.SetKernelRadius((erosion_radius, erosion_radius, 0))
 
         dilated_mask = dilate.Execute(mask)

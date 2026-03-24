@@ -3,6 +3,7 @@ import logging
 
 import numpy as np
 import radiomics
+from radiomics import getFeatureClasses
 
 import SimpleITK as sitk
 
@@ -13,10 +14,10 @@ class FeatureExtractor:
                 voxel_based=False,
                 voxel_based_settings={},
                 feature_classes=['shape', 'firstorder', 'glcm', 'gldm', 'glrlm', 'glszm', 'ngtdm'],
+                features=None,
                 filter_types=['Original'],
                 filter_settings_by_type={},
                 extraction_settings_yaml_filepath=None,
-                logging_level=logging.INFO,
                 normalize=False,
                 remove_outliers=None,
                 bin_width=None,
@@ -41,6 +42,7 @@ class FeatureExtractor:
                 voxel_based=voxel_based,
                 voxel_based_settings=voxel_based_settings,
                 feature_classes=feature_classes,
+                features=features,
                 filter_types=filter_types,
                 filter_settings_by_type=filter_settings_by_type,
                 extraction_settings_yaml_filepath=extraction_settings_yaml_filepath,
@@ -61,15 +63,17 @@ class FeatureExtractor:
             )
 
     def transform(self, image=None, mask=None):
-        if self.engine == 'pyradiomics':
-            return self.extractor.execute(image, mask, voxelBased=self.voxel_based)
-        return
+        extraction_functions = {
+            'pyradiomics' : self.extract_pyradiomics_features
+        }
+        return extraction_functions[self.engine](image, mask)
     
     def prepare_pyradiomics_extractor(self,
                                     label=1,
                                     voxel_based=False,
                                     voxel_based_settings={},
                                     feature_classes=['shape', 'firstorder', 'glcm', 'gldm', 'glrlm', 'glszm', 'ngtdm'],
+                                    features=None,
                                     filter_types=['Original'],
                                     filter_settings_by_type={},
                                     extraction_settings_yaml_filepath=None,
@@ -92,7 +96,18 @@ class FeatureExtractor:
         self.voxel_based = voxel_based
 
         self.extractor = radiomics.featureextractor.RadiomicsFeatureExtractor()
+        self.all_features = self.get_all_pyradiomics_features()
+        self.all_feature_classes = self.get_all_pyradiomics_feature_classes()
 
+        """
+        If the usual Pyradiomics yaml file is provided, those are the settings that will be used.
+        This makes it easy to reproduce previous Pyradiomics workflows using this library.
+        
+        NOTE: Remember that we turn off all Pyradiomics preprocessing steps (e.g. intensity standardization) by default
+        and instead use Monai transforms to implement these.
+        If the YAML settings include image preprocessing steps such as normalization, these will be performed internally by Pyradiomics,
+        so you should not include the Monai transforms.
+        """
         if extraction_settings_yaml_filepath is not None:
             self.extractor.loadParams(paramsFile=extraction_settings_yaml_filepath)
         
@@ -128,7 +143,37 @@ class FeatureExtractor:
             if bin_count is not None:
                 params_dict['setting']['binCount'] = bin_count
 
-            if voxel_based:
-                params_dict['voxelSetting'] = voxel_based_settings
+            # if voxel_based:
+            #     params_dict['voxelBased'] = voxel_based_settings
 
             self.extractor._applyParams(paramsDict=params_dict)
+
+            if features is not None:
+                self.extractor.disableAllFeatures()
+                enabled_features = {cl : [] for cl in self.all_feature_classes}
+        
+                for feature in features:
+                    f = [x for x in self.all_features if feature in x][0]
+                    fclass = f.split('_')[0]
+                    enabled_features[fclass].append(feature)
+
+                enabled_features = {k:v for k,v in enabled_features.items() if v}
+
+                self.extractor.enableFeaturesByName(**enabled_features)
+
+    def extract_pyradiomics_features(self, image, mask):
+        return self.extractor.execute(image, mask, voxelBased=self.voxel_based)
+    
+    def get_all_pyradiomics_features(self):
+        all_features = []
+        all_classes = getFeatureClasses()
+
+        for name, cl in all_classes.items():
+            feature_names = list(cl.getFeatureNames().keys())
+            feature_names = [f'{name}_{f}' for f in feature_names]
+            all_features.extend(feature_names)
+
+        return all_features      
+
+    def get_all_pyradiomics_feature_classes(self):
+        return list(getFeatureClasses().keys())      

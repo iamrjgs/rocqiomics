@@ -15,6 +15,7 @@ import torch
 
 from rocqiomics.package_constants import PACKAGE_NAME
 from rocqiomics.utils import (
+    is2D,
     tensor_to_sitk,
     split_dataframe_by_unique_values_in_columns,
     resample_to_target_image
@@ -29,11 +30,15 @@ class Rocqiomics:
                 preprocessing: Optional[monai.transforms.Transform]=None,
                 augmentations: List[Optional[monai.transforms.Transform]]=[],
                 voxel_based: bool=False,
+                voxel_based_settings: Optional[Dict]=None,
+                force_2D: bool=False,
+                force_2D_dimension: int=0,
                 bin_count: Optional[int]=None,
                 bin_width: Optional[float]=25.0,
                 feature_classes: List[str]=None,
+                features: List[str]=None,
                 filter_types: List[str]=None,
-                filter_settings_by_type: Dict=None,
+                filter_settings_by_type: Optional[Dict]=None,
                 extraction_settings_yaml_filepath: Optional[str]=None,
                 case_ids: Optional[List[str]]=None,
                 case_limit: Optional[int]=None,
@@ -125,15 +130,6 @@ class Rocqiomics:
         self.logging_levels: Optional[Dict] = logging_levels or {'pipeline' : logging.INFO, 'extractor' : logging.ERROR}
         self.logger = self._set_loggers()
 
-        # Set extraction settings
-        self.engine: str = engine
-        self.voxel_based: bool = voxel_based
-        self.bin_count: Optional[int] = bin_count
-        self.bin_width: Optional[float] = bin_width
-        self.feature_classes: List[str] = feature_classes or ["shape", "firstorder", "glcm", "gldm", "glrlm", "glszm", "ngtdm"]
-        self.filter_types: List[str] = filter_types or ["Original"]
-        self.filter_settings_by_type: Dict = filter_settings_by_type or {}
-
         # Set settings for results saving
         self.save_results: bool = save_results
         self.save_by_columns: List[str] = save_by_columns
@@ -163,14 +159,31 @@ class Rocqiomics:
             augmentations=self.augmentations
         )
 
+        # Set extraction settings
+        self.engine: str = engine
+        self.voxel_based: bool = voxel_based
+        self.voxel_based_settings = voxel_based_settings
+        self.force_2D = force_2D
+        self.force_2D_dimension = force_2D_dimension
+        self.bin_count: Optional[int] = bin_count
+        self.bin_width: Optional[float] = bin_width
+        self.filter_types: List[str] = filter_types or ["Original"]
+        self.filter_settings_by_type: Dict = filter_settings_by_type or {}
+        self._set_feature_classes(feature_classes)
+        self.features = features
+
         # Set radiomics feature extractor
         from rocqiomics.feature_extractor import FeatureExtractor
         self.extractor = FeatureExtractor(
             engine=self.engine,
             label=self.label,
             voxel_based=self.voxel_based,
+            voxel_based_settings=self.voxel_based_settings,
+            force_2D=self.force_2D,
+            force_2D_dimension=self.force_2D_dimension,
             bin_width=self.bin_width,
             feature_classes=self.feature_classes,
+            features=self.features,
             filter_types=self.filter_types,
             filter_settings_by_type=self.filter_settings_by_type,
             extraction_settings_yaml_filepath=extraction_settings_yaml_filepath,
@@ -276,6 +289,8 @@ class Rocqiomics:
                 include_current_date=False
             )
             sitk.WriteImage(fmap, save_filepath)
+
+        self.logger.info(f'Feature maps saved to {save_dir}')
 
         with open(os.path.join(save_dir, 'extraction_metadata.json'), "w") as fp:
             json.dump(case_data, fp) 
@@ -469,7 +484,15 @@ class Rocqiomics:
 
     def _set_device(self, device):
         return torch.device('cuda' if (torch.cuda.is_available() and (device == 'cuda')) else 'cpu')
-    
+
+    def _set_feature_classes(self, feature_classes=None):
+        classes = feature_classes or ["shape", "firstorder", "glcm", "gldm", "glrlm", "glszm", "ngtdm"]
+        # Handle shape case when image is 2D
+        if "shape" in classes:
+            if is2D(sitk.ReadImage(self.data_dicts[0]['image'])) or self.force_2D:
+                classes = ["shape2D" if f == "shape" else f for f in classes]
+        self.feature_classes = classes
+
     def _handle_case_error(self, case, error):
         self.logger.error(f'Runtime error - {case[self.id_col]} - {repr(error)}')
         self.runtime_errors.append({
@@ -478,7 +501,7 @@ class Rocqiomics:
 
     def _set_loggers(self):
         pipeline_logging_level = self.logging_levels.get('pipeline', logging.INFO)
-        extraction_logging_level = self.logging_levels.get('extraction', logging.WARNING)
+        extraction_logging_level = self.logging_levels.get('extractor', logging.WARNING)
 
         # Set pipeline logging settings
         logger_obj = logging.getLogger(PACKAGE_NAME)

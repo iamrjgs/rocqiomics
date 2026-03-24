@@ -3,6 +3,7 @@ import json
 import os
 import re
 import shutil
+from pathlib import Path
 
 import pandas as pd
 import pingouin as pg
@@ -14,6 +15,7 @@ from monai.data import itk_torch_bridge
 import itk
 import SimpleITK as sitk
 
+import rocqiomics as rq
 from rocqiomics import Rocqiomics
 
 def sort_by_numerical_suffix(case_ids):
@@ -34,6 +36,8 @@ def prepare_data_dicts(
         ):
 
         data_dicts = []
+        missing_images = []
+        missing_segmentations = []
 
         imaging_dirpath = os.path.join(base_dirpath, 'Images')
         masks_dirpath = os.path.join(base_dirpath, 'Masks')
@@ -60,17 +64,31 @@ def prepare_data_dicts(
             mask_names = os.listdir(masks_dirpath)
         
         for case_id in case_ids:
-            for mask in mask_names:
-                mask_dirpath = os.path.join(masks_dirpath, mask)
+            for md in modalities:
+                for tp in timepoints:
 
-                for md in modalities:
-                    for tp in timepoints:
+                    image_filename = f'{tp}_{md}_{case_id}.{image_extension}'
+                    image_path = os.path.join(imaging_dirpath, image_filename)
 
-                        image_filename = f'{tp}_{md}_{case_id}.{image_extension}'
-                        image_path = os.path.join(imaging_dirpath, image_filename)
+                    if not os.path.exists(image_path):
+                        missing_images.append({
+                            'case_id' : case_id,
+                            'timepoint' : tp,
+                            'modality' : md,
+                        })
 
+                    for mask in mask_names:
+                        mask_dirpath = os.path.join(masks_dirpath, mask)
                         mask_filename = f'{tp}_{md}_{case_id}.{mask_extension}'
                         mask_path = os.path.join(mask_dirpath, mask_filename)
+
+                        if not os.path.exists(mask_path):
+                            missing_segmentations.append({
+                                'case_id' : case_id,
+                                'timepoint' : tp,
+                                'modality' : md,
+                                'mask_name' : mask
+                            })
 
                         if os.path.exists(image_path) and os.path.exists(mask_path):
                             data_dicts.append({
@@ -83,8 +101,8 @@ def prepare_data_dicts(
                                     'modality' : md
                                 }
                             })
-        
-        return data_dicts
+                        
+        return data_dicts, missing_images, missing_segmentations
 
 def prepare_data_dicts_from_old_format(
         imaging_dirpath='',
@@ -433,20 +451,48 @@ def load_feature_sets(
     
     return df
 
-def augmentation_average(df, col_id='case_id'):
+def load_feature_maps(
+    features_dirpath='',
+    feature_classes=('firstorder', 'glcm', 'gldm', 'glszm', 'glrlm', 'ngtdm'),
+    mask_names=[],
+    timepoints=[],
+    modalities=[],
+    case_ids=None,
+):
+    feature_maps_path = os.path.join(features_dirpath, 'Feature Maps')
+    case_ids = os.listdir(feature_maps_path) if case_ids is None else case_ids
+
+    for cid in case_ids:
+        case_path = os.path.join(feature_maps_path, cid)
+
+        all_maps = [f for f in os.listdir(case_path) if any(cl in f for cl in feature_classes)]
+
+        for mask in (mask_names):
+            for tp in (timepoints):
+                for md in (modalities):
+                    filtered = [f for f in all_maps if (mask in f) and (tp in f) and (md in f)]
+
+                    for fname in filtered:
+                        img = sitk.ReadImage(os.path.join(case_path, fname))
+                        yield cid, img
+
+
+def augmentation_average(df, col_id='case_id', preserve_cols=[]):
     
     groupby_cols = [col_id]
+    preserve_cols = list(np.unique(preserve_cols))
 
     tp_col = 'timepoint'
     md_col = 'modality'
 
     if tp_col in df.columns:
-        if len(np.unique(df[tp_col])) > 1:
-            groupby_cols.append(tp_col)
+        groupby_cols.append(tp_col)
     
     if md_col in df.columns:
-        if len(np.unique(df[md_col])) > 1:
-            groupby_cols.append(md_col)
+        groupby_cols.append(md_col)
+
+    if len(preserve_cols) > 0:
+        groupby_cols += preserve_cols
 
     return df.groupby(groupby_cols).mean(numeric_only=True).reset_index().set_index(col_id)
 
@@ -541,11 +587,16 @@ def get_features_with_icc_above_cutoff(df,
                                        icc_metric='ci_lower_bound',
                                        id_col='case_id'
                                        ):
+    passing_features = []
     iccs = get_features_icc(df, raters, mask_name, modality, 
-                            icc_metric, id_col
+                            id_col
                             )
     
-    passing_features = [feature for feature, icc in iccs.items() if icc > icc_cutoff]
+    if icc_metric == 'icc' or icc_metric == 'ICC':
+        passing_features = [feat for feat, v in iccs.items() if v['ICC'] > icc_cutoff]
+    if icc_metric == 'ci_lower_bound' or icc_cutoff == 'CI95%':
+        passing_features = [feat for feat, v in iccs.items() if v['CI95%'] > icc_cutoff]
+
     return passing_features
 
 def compare_averaged_vs_baseline_features(base_df,
@@ -592,7 +643,6 @@ def get_significant_features(df,
     significant = {key:value for key, value in pvalues.items() if value < alpha}
     return pd.DataFrame(significant.items(), columns=['feature', 'pvalue'])
 
-
 def compute_volumes(
         data_dicts,
         id_col='case_id',
@@ -632,5 +682,27 @@ def compute_volumes(
     
     return df
 
-def plot_longitudinal_volumes(df):
-    pass
+
+def extract_linear_model(pipeline):
+    scaler = pipeline['scaling']
+    linear_model = pipeline['classification']
+
+    final_features = linear_model.feature_names_in_
+    coefficients = linear_model.coef_[0]
+
+    all_feature_names = scaler.get_feature_names_out()
+    name_to_index = {name: i for i, name in enumerate(all_feature_names)}
+    indices = [name_to_index[name] for name in final_features]
+
+    selected_means = scaler.mean_[indices]
+    selected_stds  = scaler.scale_[indices]
+    scaler_data = {
+        'means' : selected_means,
+        'scales' : selected_stds
+    }
+
+    coeffs_dict = {final_features[index]:coefficients[index] for index in np.nonzero(coefficients)[0]}
+    coeffs_dict['intercept'] = linear_model.intercept_[0]
+
+    return linear_model, coeffs_dict, scaler_data
+
