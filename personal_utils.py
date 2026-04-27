@@ -476,7 +476,6 @@ def load_feature_maps(
                         img = sitk.ReadImage(os.path.join(case_path, fname))
                         yield cid, img
 
-
 def augmentation_average(df, col_id='case_id', preserve_cols=[]):
     
     groupby_cols = [col_id]
@@ -681,7 +680,6 @@ def compute_volumes(
         df.to_excel(save_path)
     
     return df
-
 
 def extract_linear_model(pipeline):
     scaler = pipeline['scaling']

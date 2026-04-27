@@ -318,6 +318,11 @@ class Rocqiomics:
         if metadata is not None:
             for key, mdata in metadata.items():
                 feature_vect[key] = mdata
+        
+        if self.preprocessing:
+            feature_vect['diagnostics_preprocessing'] = str(self._stringify_transforms(self.preprocessing))
+        if self.augmentations:
+            feature_vect['diagnostics_augmentations'] = str(self._stringify_transforms(self.augmentations))
 
         self.results.append(feature_vect)
 
@@ -559,3 +564,38 @@ class Rocqiomics:
         run_time = time.time() - start_time
         self.logger.info(f'Case {idx}/{last_idx} done in {run_time:.2f}s\t{log_txt}')
         self.logger.debug(case)
+
+    def _stringify_value(self, v):
+        if isinstance(v, (int, float, str, bool, type(None))):
+            return repr(v)
+
+        if isinstance(v, (list, tuple)):
+            inner = ", ".join(self._stringify_value(x) for x in v)
+            return f"[{inner}]" if isinstance(v, list) else f"({inner})"
+
+        if isinstance(v, dict):
+            inner = ", ".join(f"{k}={self._stringify_value(val)}"
+                            for k, val in v.items()
+                            if not k.startswith("_"))
+            return f"{{{inner}}}"
+
+        if hasattr(v, "__dict__"):
+            cls = v.__class__.__name__
+            params = ", ".join(
+                f"{k}={self._stringify_value(val)}"
+                for k, val in v.__dict__.items()
+                if not k.startswith("_")
+            )
+            return f"{cls}({params})"
+
+        return repr(v)
+
+    def _stringify_transforms(self, obj):
+        if hasattr(obj, "transforms"):
+            return [self._stringify_value(t) for t in obj.transforms]
+
+        if isinstance(obj, (list, tuple)):
+            return [self._stringify_value(t) for t in obj]
+
+        return [self._stringify_value(obj)]
+

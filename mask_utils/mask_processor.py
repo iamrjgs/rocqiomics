@@ -3,12 +3,13 @@ import copy
 import json
 
 import numpy as np
+import radiomics
 import SimpleITK as sitk
 
 from .obj_parser import AnalyzeObjectMap
 
 
-class MaskProcesser:
+class MaskProcessor:
     def __init__(self):
         pass
 
@@ -52,17 +53,18 @@ class MaskProcesser:
         erode.SetKernelRadius((erosion_radius, erosion_radius, 0))
         return erode.Execute(mask)
 
-    def create_peritumoral_mask(self, mask, dilation_radius=1, erosion_radius=1, dilation_mm=None):
+    def create_peritumoral_mask(self, mask, dilation_radius=1, erosion_radius=1, dilation_mm=None, erosion_mm=None):
         mask = sitk.Cast(mask, sitk.sitkUInt8)
 
         dilate = sitk.BinaryDilateImageFilter()
         erode = sitk.BinaryErodeImageFilter()
 
-        radius = dilation_radius
         if dilation_mm is not None:
-            radius = int(dilation_mm / np.min(mask.GetSpacing()))
+            dilation_radius = int(dilation_mm / np.min(mask.GetSpacing()))
+        if erosion_mm is not None:
+            erosion_radius = int(erosion_mm / np.min(mask.GetSpacing()))
 
-        dilate.SetKernelRadius((radius, dilation_radius, 0))
+        dilate.SetKernelRadius((dilation_radius, dilation_radius, 0))
         erode.SetKernelRadius((erosion_radius, erosion_radius, 0))
 
         dilated_mask = dilate.Execute(mask)
@@ -80,6 +82,27 @@ class MaskProcesser:
         stats.Execute(mask)
         return stats.GetCentroid(1)
 
+    def get_largest_connected_component(self, mask, label=1, return_as_binary=False):
+        mask = mask == label
+        cc = sitk.ConnectedComponent(mask)
+        
+        stats = sitk.LabelShapeStatisticsImageFilter()
+        stats.Execute(cc)
+        
+        largest_label = max(stats.GetLabels(), key=lambda l: stats.GetNumberOfPixels(l))
+        largest = sitk.Cast(cc == largest_label, sitk.sitkUInt8)
+        largest = largest * label if not return_as_binary else largest
+        
+        return largest
+    
+    def calculate_volume(self, mask, volume_type='MeshVolume'):
+        dummy_image = sitk.Image(mask.GetSize(), sitk.sitkUInt8)
+        dummy_image.CopyInformation(mask)
+        shape_extractor = radiomics.shape.RadiomicsShape(dummy_image, mask)
+        shape_extractor.enableFeatureByName(volume_type)
+        result = shape_extractor.execute()
+        return result[volume_type]
+    
     def obj_to_mask(self, obj_path, index=0, reference_image=None):
         obj_map = AnalyzeObjectMap(obj_path)
         mask_arr = obj_map.get_data(index)
