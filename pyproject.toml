@@ -13,5 +13,4 @@ authors = [
 ]
 
 [tool.setuptools.packages.find]
-where = ["."]
 include = ["rocqiomics*"]
