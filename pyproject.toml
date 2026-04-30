@@ -18,7 +18,7 @@ dependencies = [
     "numpy",
     "itk",
     "SimpleITK",
-    "torch",
+    "torch"
 ]
 
 [tool.setuptools.packages.find]
