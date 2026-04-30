@@ -11,6 +11,15 @@ requires-python = ">=3.8"
 authors = [
     { name = "Ricardo Garcia Santiago", email = "ricardo.j.garcia.s@gmail.com" }
 ]
+dependencies = [
+    "monai",
+    "pyradiomics",
+    "pydicom",
+    "numpy",
+    "itk",
+    "SimpleITK",
+    "torch",
+]
 
 [tool.setuptools.packages.find]
 include = ["rocqiomics*"]
