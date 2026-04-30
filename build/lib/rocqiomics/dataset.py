@@ -1,0 +1,63 @@
+import monai
+
+class AugmentedDataset(monai.data.Dataset):
+    """
+    Dataset that decouples loading and augmentations from preprocessing transforms.
+    
+    In the standard monai.data.Dataset, preprocessing and augmentation are typically
+    achieved by combining preprocessing and augmentation transforms into a single Compose
+    object fed to the `transforms` keyword. While this increases the diversity of the dataset,
+    it doesn't increase its size; original images are replaced by the augmented copy.
+
+    This class preserves the original images while also generating augmented copies, thereby
+    increasing both the diversity and size of the dataset.
+
+    In this class:
+    
+    1) Augmentation transforms increase the size of the dataset.
+       For each augmentation transform, a new, transformed copy of each image is added 
+       to the dataset. Augmentation transforms are applied prior to preprocessing transforms.
+    
+    2) Preprocessing transforms are applied to all images, both the originals and augmented copies.
+       They do not generate any additional images.
+
+    To implement standard monai.data.Dataset behavior, simply leave augmentations list empty,
+    set load_transform as the loading transform and put all other transforms in preprocessing.
+    """
+
+    def __init__(self, data, load_transform, preprocessing=None, augmentations=[]):
+        self.data = data
+        self.load_transform = load_transform
+        self.preprocessing = preprocessing
+        self.augmentations = augmentations
+        self.num_augmentations = len(augmentations)
+
+        self.loaded_data = None
+    
+    def __len__(self):
+        return len(self.data) * (self.num_augmentations + 1)
+
+    def __getitem__(self, idx):
+        image_index = idx // (self.num_augmentations + 1)
+        aug_index = idx % (self.num_augmentations + 1)
+
+        # Load image/mask (plus metadata)
+        if aug_index == 0:
+            self.loaded_data = self.load_transform(self.data[image_index])
+            loaded_data = self.loaded_data
+        
+        # If aug_index > 0, use corresponding augmentation; otherwise proceed with original image/mask
+        if aug_index > 0:
+            aug_transform = self.augmentations[aug_index-1]
+            loaded_data = aug_transform(self.loaded_data)    
+    
+        # Add augmentation index to metadata
+        if 'metadata' in loaded_data.keys():
+            loaded_data['metadata']['augmentation'] = f'aug_{aug_index}'
+
+        # Preprocess image/mask data
+        if self.preprocessing is not None:
+            loaded_data = self.preprocessing(loaded_data)
+        
+        return loaded_data
+    
