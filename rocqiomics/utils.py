@@ -173,11 +173,9 @@ def split_dataframe_by_unique_values_in_columns(df, columns):
 
 def mask_nonzero_slices_per_dimension(mask):
     arr = sitk.GetArrayFromImage(mask)
-    
     slices_z = [i for i in range(arr.shape[0]) if np.any(arr[i, :, :])]
     slices_y = [j for j in range(arr.shape[1]) if np.any(arr[:, j, :])]
     slices_x = [k for k in range(arr.shape[2]) if np.any(arr[:, :, k])]
-    
     return [slices_x, slices_y, slices_z]
 
 
@@ -188,5 +186,30 @@ def mask_is2D(mask):
     slices = mask_nonzero_slices_per_dimension(mask)
     return any(len(s) == 1 for s in slices)
 
+def stringify_value(v):
+    if isinstance(v, (int, float, str, bool, type(None))):
+        return repr(v)
+    if isinstance(v, (list, tuple)):
+        inner = ", ".join(stringify_value(x) for x in v)
+        return f"[{inner}]" if isinstance(v, list) else f"({inner})"
+    if isinstance(v, dict):
+        inner = ", ".join(f"{k}={stringify_value(val)}"
+                        for k, val in v.items()
+                        if not k.startswith("_"))
+        return f"{{{inner}}}"
+    if hasattr(v, "__dict__"):
+        cls = v.__class__.__name__
+        params = ", ".join(
+            f"{k}={stringify_value(val)}"
+            for k, val in v.__dict__.items()
+            if not k.startswith("_")
+        )
+        return f"{cls}({params})"
+    return repr(v)
 
-
+def stringify_transforms(obj):
+    if hasattr(obj, "transforms"):
+        return [stringify_value(t) for t in obj.transforms]
+    if isinstance(obj, (list, tuple)):
+        return [stringify_value(t) for t in obj]
+    return [stringify_value(obj)]

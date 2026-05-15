@@ -21,7 +21,7 @@ class AugmentedDataset(monai.data.Dataset):
     2) Preprocessing transforms are applied to all images, both the originals and augmented copies.
        They do not generate any additional images.
 
-    To implement standard monai.data.Dataset behavior, simply leave augmentations list empty,
+    To recover standard monai.data.Dataset behavior, simply leave augmentations list empty,
     set load_transform as the loading transform and put all other transforms in preprocessing.
     """
 
@@ -53,7 +53,7 @@ class AugmentedDataset(monai.data.Dataset):
     
         # Add augmentation index to metadata
         if 'metadata' in loaded_data.keys():
-            loaded_data['metadata']['augmentation'] = f'aug_{aug_index}'
+            loaded_data['metadata']['augmentation'] = aug_index
 
         # Preprocess image/mask data
         if self.preprocessing is not None:

@@ -13,17 +13,15 @@ import SimpleITK as sitk
 import monai
 import torch
 
-from rocqiomics.package_constants import PACKAGE_NAME
 from rocqiomics.utils import (
     is2D,
     tensor_to_sitk,
     split_dataframe_by_unique_values_in_columns,
-    resample_to_target_image
+    resample_to_target_image,
+    stringify_transforms
 )
 
-
 class Rocqiomics:
-
     def __init__(self,
                 data_dicts: Optional[List[Dict]]=None,
                 load_transform: Optional[monai.transforms.Transform]=None,
@@ -38,13 +36,14 @@ class Rocqiomics:
                 feature_classes: List[str]=None,
                 features: List[str]=None,
                 filter_types: List[str]=None,
-                filter_settings_by_type: Optional[Dict]=None,
+                filter_settings: Optional[Dict]=None,
                 extraction_settings_yaml_filepath: Optional[str]=None,
                 case_ids: Optional[List[str]]=None,
                 case_limit: Optional[int]=None,
                 engine: str="pyradiomics",
                 device: str="cpu",
-                logging_levels: Optional[Dict]=None,
+                pipeline_logging_level=None,
+                extractor_logging_level=None, 
                 label: int=1,
                 validate_inputs: bool=True,
                 id_col: str="case_id",
@@ -55,16 +54,16 @@ class Rocqiomics:
                 save_results_to_existing_file: bool=False,
                 save_by_columns: Optional[List[str]]=None,
                 ):   
-        
         """
-        Pyradiomics-based medical image radiomics feature extraction with Monai-enabled preprocessing and augmentation.
+        Medical image radiomics feature extraction with Monai-enabled preprocessing and augmentation.
 
         *** IMPORTANT ***
-        This package disables all Pyradiomics preprocessing steps (intensity normalization, resampling, etc.) by default.
-        We recommend these and any other preprocessing steps be implemented with monai transforms in the preprocessing keyword.
-        The exception to this is the gray-level discretization step (whether fixed bin width or fixed bin size), which is 
-        unavoidably performed by Pyradiomics at extraction time prior to extracting texture features. You can optionally turn 
-        on Pyradiomics settings by providing a path to a Pyradiomics settings YAML file in `extraction_settings_yaml_filepath`.
+        This package disables all preprocessing steps (intensity normalization, resampling, etc.) performed by feature extraction 
+        default engines (e.g. Pyradiomics) by default. We recommend these and any other preprocessing steps be implemented with monai transforms
+        in the preprocessing keyword. The exception to this is gray-level discretization step (whether fixed bin width or fixed bin size), which is 
+        unavoidably performed by Pyradiomics at extraction time prior to extracting texture features. 
+        
+        You can optionally turn on Pyradiomics settings by providing a path to a Pyradiomics settings YAML file in `extraction_settings_yaml_filepath`.
 
         Parameters:
             data_dicts (Optional[List[Dict]]): List of dictionaries containing case data. Each data dict should have fields:
@@ -90,7 +89,7 @@ class Rocqiomics:
 
             feature_classes (List[str]): List of radiomics feature classes to extract.
             filter_types (List[str]): Types of image filters applied before extraction.
-            filter_settings_by_type (Dict): Configuration of filter settings per filter type.
+            filter_settings (Dict): Configuration of filter settings per filter type.
             extraction_settings_yaml_filepath (Optional[str]): YAML file path with extraction parameters. IMPORTANT: IF YOU USE THIS, THE YAML FILE SETTINGS WILL OVERRIDE ALL OTHER SETTINGS.
 
             case_ids (Optional[List[str]]): List of case_ids you want to filter by. Leave as None if extracting from all cases.
@@ -125,9 +124,11 @@ class Rocqiomics:
         self.label: int = label
         self.id_col: str = id_col
         self.device: torch.device = self._set_device(device)
+        self.engine: str = engine
         
         # Initialize logging
-        self.logging_levels: Optional[Dict] = logging_levels or {'pipeline' : logging.INFO, 'extractor' : logging.ERROR}
+        self.pipeline_logging_level = pipeline_logging_level or logging.INFO 
+        self.extractor_logging_level = extractor_logging_level or logging.WARNING 
         self.logger = self._set_loggers()
 
         # Set settings for results saving
@@ -150,7 +151,7 @@ class Rocqiomics:
             validate_inputs=validate_inputs
         )
         
-        # Set monai Dataset to handle loading, augmentation, and preprocessing
+        # Set Dataset to handle loading, augmentation, and preprocessing
         from rocqiomics.dataset import AugmentedDataset
         self.dataset = AugmentedDataset(
             data=self.data_dicts,
@@ -160,7 +161,6 @@ class Rocqiomics:
         )
 
         # Set extraction settings
-        self.engine: str = engine
         self.voxel_based: bool = voxel_based
         self.voxel_based_settings = voxel_based_settings
         self.force_2D = force_2D
@@ -168,14 +168,14 @@ class Rocqiomics:
         self.bin_count: Optional[int] = bin_count
         self.bin_width: Optional[float] = bin_width
         self.filter_types: List[str] = filter_types or ["Original"]
-        self.filter_settings_by_type: Dict = filter_settings_by_type or {}
+        self.filter_settings: Dict = filter_settings or {"Original" : {}}
+        self.filter_settings = {k:v for k,v in self.filter_settings.items() if k in self.filter_types}
         self._set_feature_classes(feature_classes)
         self.features = features
 
         # Set radiomics feature extractor
-        from rocqiomics.feature_extractor import FeatureExtractor
-        self.extractor = FeatureExtractor(
-            engine=self.engine,
+        from rocqiomics.extraction_engines import MAP_ENGINE
+        self.extractor = MAP_ENGINE(self.engine)(
             label=self.label,
             voxel_based=self.voxel_based,
             voxel_based_settings=self.voxel_based_settings,
@@ -185,7 +185,7 @@ class Rocqiomics:
             feature_classes=self.feature_classes,
             features=self.features,
             filter_types=self.filter_types,
-            filter_settings_by_type=self.filter_settings_by_type,
+            filter_settings=self.filter_settings,
             extraction_settings_yaml_filepath=extraction_settings_yaml_filepath,
         )
 
@@ -193,16 +193,18 @@ class Rocqiomics:
         return len(self.dataset)
     
     def _run_case(self, idx, case):
-        start_time = time.time()
+        start_time = time.perf_counter()
 
         # Get loaded, preprocessed, and (potentially) augmented data
-        case_id, image, mask, metadata = [case.get(x) for x in [self.id_col, "image", "mask", "metadata"]]
-    
-        # Convert tensors to SimpleITK images expected by Pyradiomics
-        image, mask = tensor_to_sitk(image), tensor_to_sitk(mask)
-        
+        case_id, image, mask, metadata = (
+            case.get(self.id_col),
+            case.get("image"),
+            case.get("mask"),
+            case.get("metadata"),
+        )
+                
         # Extract feature vector or map depending on voxel_based extraction mode
-        extraction_results = self._extract_features(image, mask)
+        extraction_results = self.extractor.extract(image, mask)
 
         # Handle results metadata addition and/or saving depending on voxel_based extraction mode
         if self.voxel_based:
@@ -215,7 +217,7 @@ class Rocqiomics:
         
     def run_pipeline(self):
 
-        self.logger.info(f'Pipeline Initialized | Cases: {len(self)} | Excluded cases: {len(self.get_excluded_cases())}')
+        self.logger.info(f'Pipeline Initialized | Engine: {self.engine} | Cases: {len(self)} | Excluded cases: {len(self.get_excluded_cases())}')
 
         for idx, case in enumerate(self.dataset):
             try:
@@ -320,9 +322,9 @@ class Rocqiomics:
                 feature_vect[key] = mdata
         
         if self.preprocessing:
-            feature_vect['diagnostics_preprocessing'] = str(self._stringify_transforms(self.preprocessing))
+            feature_vect['diagnostics_preprocessing'] = str(stringify_transforms(self.preprocessing))
         if self.augmentations:
-            feature_vect['diagnostics_augmentations'] = str(self._stringify_transforms(self.augmentations))
+            feature_vect['diagnostics_augmentations'] = str(stringify_transforms(self.augmentations))
 
         self.results.append(feature_vect)
 
@@ -435,9 +437,6 @@ class Rocqiomics:
 
         return [key for key, value in file_validity_tests.items() if not value]
 
-    def _extract_features(self, image, mask):
-        return self.extractor.transform(image, mask)
-
     def _get_save_filepath(self, 
                            save_column_values=None, 
                            include_current_date=False
@@ -505,44 +504,43 @@ class Rocqiomics:
         })
 
     def _set_loggers(self):
-        pipeline_logging_level = self.logging_levels.get('pipeline', logging.INFO)
-        extraction_logging_level = self.logging_levels.get('extractor', logging.WARNING)
+        pipeline_logging_level = self.pipeline_logging_level
+        extraction_logging_level = self.extractor_logging_level
 
-        # Set pipeline logging settings
-        logger_obj = logging.getLogger(PACKAGE_NAME)
-        if logger_obj.hasHandlers():
-            logger_obj.handlers.clear()
+        logger_obj = logging.getLogger(__package__)
+        logger_obj.handlers.clear()
         logger_obj.setLevel(pipeline_logging_level)
+        logger_obj.propagate = False
         console_handler = logging.StreamHandler(stream=sys.stdout)
-        console_handler.setLevel(pipeline_logging_level) 
+        console_handler.setLevel(pipeline_logging_level)
         formatter = logging.Formatter("%(name)s %(levelname)s:\t %(message)s")
         console_handler.setFormatter(formatter)
         logger_obj.addHandler(console_handler)
 
-        # Override logging settings for Pyradiomics loggers
-        for name in ['radiomics', 
-                     'radiomics.generalinfo',
-                     'radiomics.featureextractor', 
-                     'radiomics.imageoperations',
-                     'radiomics.shape',
-                     'radiomics.firstorder',
-                     'radiomics.glcm',
-                     'radiomics.gldm',
-                     'radiomics.glrlm',
-                     'radiomics.glrlm',
-                     'radiomics.glszm',
-                     'radiomics.ngtdm',
-                     ]:
-            pyradiomics_format = "Pyradiomics %(levelname)s:\t %(message)s"
-            pyradiomics_logger = logging.getLogger(name)
-            if pyradiomics_logger.hasHandlers():
-                pyradiomics_logger.handlers.clear()
-            pyradiomics_logger.setLevel(extraction_logging_level)
+        for name in [
+            'radiomics',
+            'radiomics.generalinfo',
+            'radiomics.featureextractor',
+            'radiomics.imageoperations',
+            'radiomics.shape',
+            'radiomics.firstorder',
+            'radiomics.glcm',
+            'radiomics.gldm',
+            'radiomics.glrlm',
+            'radiomics.glszm',
+            'radiomics.ngtdm',
+        ]:
+            extractor_logger = logging.getLogger(name)
+            extractor_logger.handlers.clear()
+            extractor_logger.setLevel(extraction_logging_level)
+            extractor_logger.propagate = False
             console_handler = logging.StreamHandler(stream=sys.stdout)
-            console_handler.setLevel(extraction_logging_level) 
-            formatter = logging.Formatter(pyradiomics_format)
+            console_handler.setLevel(extraction_logging_level)
+            formatter = logging.Formatter(f"{self.engine} %(levelname)s:\t %(message)s")
             console_handler.setFormatter(formatter)
-            pyradiomics_logger.addHandler(console_handler)
+            extractor_logger.addHandler(console_handler)
+
+        logging.getLogger("py.warnings").setLevel(logging.ERROR)
 
         return logger_obj
     
@@ -561,41 +559,8 @@ class Rocqiomics:
 
         log_txt = '\t'.join(log_data)
         
-        run_time = time.time() - start_time
+        run_time = time.perf_counter() - start_time
         self.logger.info(f'Case {idx}/{last_idx} done in {run_time:.2f}s\t{log_txt}')
         self.logger.debug(case)
 
-    def _stringify_value(self, v):
-        if isinstance(v, (int, float, str, bool, type(None))):
-            return repr(v)
-
-        if isinstance(v, (list, tuple)):
-            inner = ", ".join(self._stringify_value(x) for x in v)
-            return f"[{inner}]" if isinstance(v, list) else f"({inner})"
-
-        if isinstance(v, dict):
-            inner = ", ".join(f"{k}={self._stringify_value(val)}"
-                            for k, val in v.items()
-                            if not k.startswith("_"))
-            return f"{{{inner}}}"
-
-        if hasattr(v, "__dict__"):
-            cls = v.__class__.__name__
-            params = ", ".join(
-                f"{k}={self._stringify_value(val)}"
-                for k, val in v.__dict__.items()
-                if not k.startswith("_")
-            )
-            return f"{cls}({params})"
-
-        return repr(v)
-
-    def _stringify_transforms(self, obj):
-        if hasattr(obj, "transforms"):
-            return [self._stringify_value(t) for t in obj.transforms]
-
-        if isinstance(obj, (list, tuple)):
-            return [self._stringify_value(t) for t in obj]
-
-        return [self._stringify_value(obj)]
 
