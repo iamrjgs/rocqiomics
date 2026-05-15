@@ -336,7 +336,7 @@ class Rocqiomics:
         
         # Resample feature map to have the same geometry as the original image
         if original_image is not None:
-            maps = {k:resample_to_target_image(v, original_image) for k,v in maps.items()}
+            maps = {k:resample_to_target_image(v, tensor_to_sitk(original_image)) for k,v in maps.items()}
 
         # Add case metadata to diagnostic data
         case_data[self.id_col] = case_id
@@ -406,7 +406,6 @@ class Rocqiomics:
 
         return data_dicts, excluded_cases
  
-
     def _get_save_filepath(self, 
                            save_column_values=None, 
                            include_current_date=False
