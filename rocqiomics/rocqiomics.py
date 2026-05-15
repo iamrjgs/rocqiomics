@@ -13,6 +13,7 @@ import SimpleITK as sitk
 import monai
 import torch
 
+from rocqiomics.input_validation import get_input_validation_tests
 from rocqiomics.utils import (
     is2D,
     tensor_to_sitk,
@@ -382,12 +383,16 @@ class Rocqiomics:
 
     def _validate_input_data_and_exclude_cases_with_errors(self, data_dicts):
         excluded_cases = []
-        tests = self._get_input_validation_tests()
+        tests = get_input_validation_tests()
 
         for case in data_dicts:
 
             for test_name, test_func in tests.items():
-                test_result = test_func(case)
+                test_result = test_func(
+                    case,
+                    id_col=self.id_col,
+                    label=self.label
+                    )
 
                 # If test fails, error message saved in test_result
                 if len(test_result) > 0:
@@ -401,41 +406,6 @@ class Rocqiomics:
 
         return data_dicts, excluded_cases
  
-    def _get_input_validation_tests(self):
-        return {
-            'key_existence' : self._key_existence_tests,
-            'file_existence' : self._file_existence_tests,
-            'file_validity' : self._file_validity_tests
-        }
-
-    def _key_existence_tests(self, case):
-        keys = list(case.keys())
-        
-        key_tests = {
-            'case_id key exists' : self.id_col in keys,
-            'image key exists' : 'image' in keys,
-            'mask key exists' : 'mask' in keys,
-        }
-
-        return [key for key, value in key_tests.items() if not value]
-    
-    def _file_existence_tests(self, case):
-        file_existence_tests = {
-            'image file exists' : os.path.exists(case['image']),
-            'mask file exists' : os.path.exists(case['mask']),
-        }
-
-        return [key for key, value in file_existence_tests.items() if not value]
-
-    def _file_validity_tests(self, case):
-        mask = sitk.GetArrayFromImage(sitk.ReadImage(case['mask']))
-        
-        file_validity_tests = {
-            'mask contains labels' : len(np.unique(mask)) > 1,
-            'mask has multiple voxels' : len(mask[mask == self.label]) > 1
-        }
-
-        return [key for key, value in file_validity_tests.items() if not value]
 
     def _get_save_filepath(self, 
                            save_column_values=None, 
