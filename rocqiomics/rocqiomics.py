@@ -4,6 +4,7 @@ import json
 import logging
 import time
 from typing import List, Dict, Optional
+import traceback
 import sys
 
 import numpy as np
@@ -432,9 +433,13 @@ class Rocqiomics:
                                         include_current_date=False
                                         ):
         save_filename_pieces = []
-        for save_column in self.save_by_columns:
-            if save_column in list(metadata.keys()):
-                save_filename_pieces.insert(0, metadata[save_column])
+
+        if self.save_by_columns is None:
+            save_filename_pieces.insert(0, 'AllFeatures')
+        else:
+            for save_column in self.save_by_columns:
+                if save_column in list(metadata.keys()):
+                    save_filename_pieces.insert(0, metadata[save_column])
 
         if include_current_date:
             save_filename_pieces.append(datetime.today().strftime('%m%d%y'))
@@ -464,7 +469,7 @@ class Rocqiomics:
         self.feature_classes = classes
 
     def _handle_case_error(self, case, error):
-        self.logger.error(f'Runtime error \t {case[self.id_col]} \t {repr(error)}')
+        self.logger.error(f'Runtime error \t {case[self.id_col]} \t {traceback.format_exc()}')
         self.runtime_errors.append({
             case[self.id_col] : repr(error)
         })
