@@ -60,7 +60,7 @@ class Rocqiomics:
 
         *** IMPORTANT ***
         This package disables all preprocessing steps (intensity normalization, resampling, etc.) performed by feature extraction 
-        default engines (e.g. Pyradiomics) by default. We recommend these and any other preprocessing steps be implemented with monai transforms
+        engines (e.g. Pyradiomics) by default. We recommend these and any other preprocessing steps be implemented with Monai transforms
         in the preprocessing keyword. The exception to this is gray-level discretization step (whether fixed bin width or fixed bin size), which is 
         unavoidably performed by Pyradiomics at extraction time prior to extracting texture features. 
         
@@ -99,11 +99,8 @@ class Rocqiomics:
             engine (str): Feature extraction engine (only Pyradiomics for now).
             device (str): Processing device ("cpu" or "gpu").
 
-            logging_levels (Optional[Dict]): Logging settings for pipeline and extraction. 
-            Example: {'pipeline' : logging.INFO, 'extraction' : logging.WARNING}
-
             label (int): Segmentation label ID used for feature extraction.
-            validate_inputs (bool): Whether to validate input data is valid.
+            validate_inputs (bool): Whether to subject input data to input validation tests.
             id_col (str): Identifier column in metadata ("case_id" by default).
             reader (str): Monai image reader type ("ITKReader" by default).
 
@@ -467,7 +464,7 @@ class Rocqiomics:
         self.feature_classes = classes
 
     def _handle_case_error(self, case, error):
-        self.logger.error(f'Runtime error - {case[self.id_col]} - {repr(error)}')
+        self.logger.error(f'Runtime error \t {case[self.id_col]} \t {repr(error)}')
         self.runtime_errors.append({
             case[self.id_col] : repr(error)
         })

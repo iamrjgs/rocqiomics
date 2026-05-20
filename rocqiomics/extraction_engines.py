@@ -17,7 +17,7 @@ except:
     pass
 try:
     import fastrad
-    from fastrad import FeatureSettings, FeatureExtractor
+    from fastrad import FeatureSettings, FeatureExtractor, VoxelFeatureExtractor, DenseFeatureExtractor
     from fastrad.image import MedicalImage, Mask
     from fastrad.io import _sitk_to_tensor
 except:
@@ -37,9 +37,11 @@ def MAP_ENGINE(name):
 class FeatureExtractionEngine(ABC):
     def __init__(self,
                 name=None,
+                voxel_based=False,
                 **kwargs
                 ):
         self.name = name
+        self.voxel_based = voxel_based
         self.extractor = self.prepare_extractor(**kwargs)
 
     @abstractmethod
@@ -59,8 +61,8 @@ class FeatureExtractionEngine(ABC):
         pass
 
 class PyradiomicsExtractor(FeatureExtractionEngine):
-    def __init__(self, name="pyradiomics", **kwargs):
-        super().__init__(name=name, **kwargs)
+    def __init__(self, name="pyradiomics", voxel_based=False, **kwargs):
+        super().__init__(name=name, voxel_based=voxel_based, **kwargs)
 
     def preprocess(self, image, mask, **kwargs):
         if isinstance(image, MonaiMetaTensor) and isinstance(mask, MonaiMetaTensor):
@@ -73,7 +75,6 @@ class PyradiomicsExtractor(FeatureExtractionEngine):
     def prepare_extractor(
         self,
         label=1,
-        voxel_based=False,
         voxel_based_settings={},
         feature_classes=None,
         features=None,
@@ -96,8 +97,6 @@ class PyradiomicsExtractor(FeatureExtractionEngine):
         additional_info=True,
         **kwargs,
     ):
-        self.voxel_based = voxel_based
-
         extractor = radiomics.featureextractor.RadiomicsFeatureExtractor()
         self.all_features = self.get_all_pyradiomics_features()
         self.all_feature_classes = self.get_all_pyradiomics_feature_classes()
@@ -134,8 +133,9 @@ class PyradiomicsExtractor(FeatureExtractionEngine):
 
         if bin_width is not None:
             params_dict["setting"]["binWidth"] = bin_width
-        if bin_count is not None:
-            params_dict["setting"]["binCount"] = bin_count
+        else:
+            if bin_count is not None:
+                params_dict["setting"]["binCount"] = bin_count
 
         extractor._applyParams(paramsDict=params_dict)
 
@@ -172,8 +172,8 @@ class PyradiomicsExtractor(FeatureExtractionEngine):
         return list(getFeatureClasses().keys())
 
 class FastradExtractor(FeatureExtractionEngine):
-    def __init__(self, name="fastrad", **kwargs):
-        super().__init__(name=name, **kwargs)
+    def __init__(self, name="fastrad", voxel_based=False, **kwargs):
+        super().__init__(name=name, voxel_based=voxel_based, **kwargs)
 
     def preprocess(self, image, mask, **kwargs):
         if isinstance(image, MonaiMetaTensor) and isinstance(mask, MonaiMetaTensor):
@@ -200,7 +200,6 @@ class FastradExtractor(FeatureExtractionEngine):
     def prepare_extractor(
         self,
         label=1,
-        voxel_based=False,
         voxel_based_settings={},
         feature_classes=None,
         features=None,
@@ -210,6 +209,8 @@ class FastradExtractor(FeatureExtractionEngine):
         resampled_pixel_size=None,
         interpolator='sitkBSpline',
         pad_distance=5,
+        kernel_size=3,
+        stride=1,
         force_2D=False,
         force_2D_dimension=0,
         compile=False,
@@ -220,6 +221,8 @@ class FastradExtractor(FeatureExtractionEngine):
         **kwargs,
     ):  
         self.filter_settings = filter_settings
+        self.kernel_size = kernel_size
+        self.stride = stride
 
         settings = FeatureSettings(
             feature_classes=feature_classes,
@@ -228,9 +231,9 @@ class FastradExtractor(FeatureExtractionEngine):
             force2D=force_2D,
             force2Ddimension=force_2D_dimension,
             amp=amp,
-            differentiable=differentiable
+            differentiable=differentiable,
         )
-        return FeatureExtractor(settings)
+        return DenseFeatureExtractor(settings)
 
     def extract(self, image, mask, **kwargs):
         image, mask = self.preprocess(image, mask)
@@ -238,7 +241,11 @@ class FastradExtractor(FeatureExtractionEngine):
         
         results = {}
         for fname, fimg in filtered_images_dict.items():
-            filter_results =  self.extractor.extract(fimg, mask)
+            if self.voxel_based:
+                filter_results = self.extractor.extract_dense(fimg, mask, kernel_size=self.kernel_size, stride=self.stride)
+            else:
+                filter_results =  self.extractor.extract(fimg, mask)
+
             filter_results = {f'{fname}:{k}':v for k,v in filter_results.items()}
             results = results | filter_results
 
@@ -256,4 +263,12 @@ class FastradExtractor(FeatureExtractionEngine):
             words = [cap(w) for w in words]
             return f"{filter_name}_{parts[-2]}_{''.join(words)}"
 
-        return {pyradiomics_map_col(k): v for k, v in results.items()}
+        def map_result(v):
+            if isinstance(v, (int, float)):
+                return float(v)
+            if isinstance(v, torch.Tensor):
+                # return tensor_to_sitk(v)
+                return v
+            raise TypeError
+
+        return {pyradiomics_map_col(k): map_result(v) for k, v in results.items()}
