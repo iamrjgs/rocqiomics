@@ -50,7 +50,6 @@ def generate_radscore_maps(
         resample_to_image=False,
         save_radscore_maps=True
         ):
-    
     features = list(coefficients_dict.keys())
     coefficients = list(coefficients_dict.values())
 

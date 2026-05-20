@@ -342,8 +342,7 @@ class Rocqiomics:
             for key, mdata in metadata.items():
                 case_data[key] = mdata
 
-        # Only add case data to results, as adding all feature maps for all cases would quickly exceed memory constraints
-        self.results.append(case_data)
+        self.results.append((case_data, maps))
 
         # If enabled, save feature maps to disk
         if self.save_results:
