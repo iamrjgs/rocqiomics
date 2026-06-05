@@ -31,6 +31,7 @@ class Rocqiomics:
                 augmentations: List[Optional[monai.transforms.Transform]]=[],
                 voxel_based: bool=False,
                 voxel_based_settings: Optional[Dict]=None,
+                store_feature_maps: bool=False,
                 force_2D: bool=False,
                 force_2D_dimension: int=0,
                 bin_count: Optional[int]=None,
@@ -50,6 +51,7 @@ class Rocqiomics:
                 validate_inputs: bool=True,
                 id_col: str="case_id",
                 reader: str="ITKReader",
+                store_feature_maps: bool=False,
                 save_results: bool=True,
                 save_dirpath: Optional[str]=None,
                 save_suffix: str="",
@@ -342,7 +344,13 @@ class Rocqiomics:
             for key, mdata in metadata.items():
                 case_data[key] = mdata
 
-        self.results.append((case_data, maps))
+        result = {
+            'metadata' : case_data
+        }
+        if self.store_feature_maps:
+            result['maps'] = maps
+
+        self.results.append(result)
 
         # If enabled, save feature maps to disk
         if self.save_results:
