@@ -209,12 +209,19 @@ class Rocqiomics:
 
         # Handle results metadata addition and/or saving depending on voxel_based extraction mode
         if self.voxel_based:
-            self._handle_feature_map(case_id, extraction_results, metadata, image)
+            result = self._handle_feature_map(case_id, extraction_results, metadata, image)
         else:
-            self._handle_feature_vectors(case_id, extraction_results, metadata)
+            result = self._handle_feature_vectors(case_id, extraction_results, metadata)
 
         # Log results
         self._log_case_data(idx, case, start_time)
+
+        return {
+            'result' : result,
+            'image' : image,
+            'mask' : mask,
+            'metadata' : metadata
+        }
         
     def run_pipeline(self):
 
@@ -222,7 +229,8 @@ class Rocqiomics:
 
         for idx, case in enumerate(self.dataset):
             try:
-                self._run_case(idx, case)
+                results_dict = self._run_case(idx, case)
+                self.results.append(results_dict['result'])
             except Exception as e:
                 self._handle_case_error(case=case, error=e)
 
@@ -231,6 +239,16 @@ class Rocqiomics:
             self.save_results_df()
 
         return self.get_results()
+
+    def run_generator(self):
+
+        self.logger.info(f'Pipeline Initialized | Engine: {self.engine} | Cases: {len(self)} | Excluded cases: {len(self.get_excluded_cases())}')
+
+        for idx, case in enumerate(self.dataset):
+            try:
+                yield self._run_case(idx, case)
+            except Exception as e:
+                self._handle_case_error(case=case, error=e)
     
     def get_data_dicts(self):
         return self.data_dicts
@@ -327,7 +345,7 @@ class Rocqiomics:
         if self.augmentations:
             feature_vect['diagnostics_augmentations'] = str(stringify_transforms(self.augmentations))
 
-        self.results.append(feature_vect)
+        return feature_vect
 
     def _handle_feature_map(self, case_id, feature_vect, metadata=None, original_image=None):
         # Separate feature maps from diagnostic data in results
@@ -350,8 +368,6 @@ class Rocqiomics:
         if self.store_feature_maps:
             result['maps'] = maps
 
-        self.results.append(result)
-
         # If enabled, save feature maps to disk
         if self.save_results:
             self.save_results_maps(
@@ -359,6 +375,7 @@ class Rocqiomics:
                 case_id=case_id,
                 case_data=case_data
             )
+        return result
 
     def _initialize_data_dicts(self,
                                data_dicts: Optional[List[Dict]],
