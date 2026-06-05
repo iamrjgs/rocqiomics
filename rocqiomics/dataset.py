@@ -1,3 +1,4 @@
+import copy
 import monai
 
 class AugmentedDataset(monai.data.Dataset):
@@ -31,8 +32,6 @@ class AugmentedDataset(monai.data.Dataset):
         self.preprocessing = preprocessing
         self.augmentations = augmentations
         self.num_augmentations = len(augmentations)
-
-        self.loaded_data = None
     
     def __len__(self):
         return len(self.data) * (self.num_augmentations + 1)
@@ -41,18 +40,19 @@ class AugmentedDataset(monai.data.Dataset):
         image_index = idx // (self.num_augmentations + 1)
         aug_index = idx % (self.num_augmentations + 1)
 
-        # Load image/mask (plus metadata)
-        if aug_index == 0:
-            self.loaded_data = self.load_transform(self.data[image_index])
-            loaded_data = self.loaded_data
-        
-        # If aug_index > 0, use corresponding augmentation; otherwise proceed with original image/mask
+        base_data = self.load_transform(self.data[image_index])
+
+        # Apply augmentation if needed
         if aug_index > 0:
-            aug_transform = self.augmentations[aug_index-1]
-            loaded_data = aug_transform(self.loaded_data)    
+            loaded_data = copy.deepcopy(base_data)
+            loaded_data = self.augmentations[aug_index - 1](loaded_data)
+        else:
+            loaded_data = base_data    
     
         # Add augmentation index to metadata
-        if 'metadata' in loaded_data.keys():
+        if isinstance(loaded_data, dict) and 'metadata' in loaded_data:
+            loaded_data = dict(loaded_data)
+            loaded_data['metadata'] = dict(loaded_data['metadata'])
             loaded_data['metadata']['augmentation'] = aug_index
 
         # Preprocess image/mask data
@@ -60,4 +60,3 @@ class AugmentedDataset(monai.data.Dataset):
             loaded_data = self.preprocessing(loaded_data)
         
         return loaded_data
-    
