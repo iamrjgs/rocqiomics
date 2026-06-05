@@ -26,11 +26,11 @@ class AugmentedDataset(monai.data.Dataset):
     set load_transform as the loading transform and put all other transforms in preprocessing.
     """
 
-    def __init__(self, data, load_transform, preprocessing=None, augmentations=[]):
+    def __init__(self, data, load_transform, preprocessing=None, augmentations=None):
         self.data = data
         self.load_transform = load_transform
         self.preprocessing = preprocessing
-        self.augmentations = augmentations
+        self.augmentations = augmentations or []
         self.num_augmentations = len(augmentations)
     
     def __len__(self):
