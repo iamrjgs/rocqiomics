@@ -30,7 +30,7 @@ class AugmentedDataset(monai.data.Dataset):
         self.data = data
         self.load_transform = load_transform
         self.preprocessing = preprocessing
-        self.augmentations = augmentations or []
+        self.augmentations = augmentations if augmentations is not None else []
         self.num_augmentations = len(augmentations)
     
     def __len__(self):

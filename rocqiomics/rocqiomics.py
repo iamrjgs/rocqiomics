@@ -28,7 +28,7 @@ class Rocqiomics:
                 data_dicts: Optional[List[Dict]]=None,
                 load_transform: Optional[monai.transforms.Transform]=None,
                 preprocessing: Optional[monai.transforms.Transform]=None,
-                augmentations: List[Optional[monai.transforms.Transform]]=[],
+                augmentations: Optional[List[Optional[monai.transforms.Transform]]]=None,
                 voxel_based: bool=False,
                 voxel_based_settings: Optional[Dict]=None,
                 store_feature_maps: bool=False,
@@ -142,7 +142,7 @@ class Rocqiomics:
         # Set monai transforms for loading, preprocessing, and augmentation
         self.load_transform = load_transform or self._default_load_transform(reader=reader)
         self.preprocessing = preprocessing
-        self.augmentations = augmentations
+        self.augmentations = augmentations if augmentations is not None else []
             
         # Validate and set list of input data dicts
         self.data_dicts, self.excluded_cases = self._initialize_data_dicts(
