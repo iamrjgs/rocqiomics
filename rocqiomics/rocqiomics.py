@@ -31,7 +31,7 @@ class Rocqiomics:
                 augmentations: Optional[List[Optional[monai.transforms.Transform]]]=None,
                 voxel_based: bool=False,
                 voxel_based_settings: Optional[Dict]=None,
-                store_feature_maps: bool=False,
+                cache_feature_maps: bool=False,
                 force_2D: bool=False,
                 force_2D_dimension: int=0,
                 bin_count: Optional[int]=None,
@@ -51,7 +51,6 @@ class Rocqiomics:
                 validate_inputs: bool=True,
                 id_col: str="case_id",
                 reader: str="ITKReader",
-                store_feature_maps: bool=False,
                 save_results: bool=True,
                 save_dirpath: Optional[str]=None,
                 save_suffix: str="",
@@ -189,6 +188,8 @@ class Rocqiomics:
             filter_settings=self.filter_settings,
             extraction_settings_yaml_filepath=extraction_settings_yaml_filepath,
         )
+
+        self.logger.info('AAAAAAAAAAA')
 
     def __len__(self):
         return len(self.dataset)
@@ -365,7 +366,7 @@ class Rocqiomics:
         result = {
             'metadata' : case_data
         }
-        if self.store_feature_maps:
+        if self.cache_feature_maps:
             result['maps'] = maps
 
         # If enabled, save feature maps to disk
