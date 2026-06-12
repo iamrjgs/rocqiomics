@@ -163,10 +163,11 @@ class Rocqiomics:
         # Set extraction settings
         self.voxel_based: bool = voxel_based
         self.voxel_based_settings = voxel_based_settings
-        self.force_2D = force_2D
-        self.force_2D_dimension = force_2D_dimension
+        self.force_2D: bool = force_2D
+        self.force_2D_dimension: int = force_2D_dimension
         self.bin_count: Optional[int] = bin_count
         self.bin_width: Optional[float] = bin_width
+        self.cache_feature_maps: bool = cache_feature_maps
         self.filter_types: List[str] = filter_types or ["Original"]
         self.filter_settings: Dict = filter_settings or {"Original" : {}}
         self.filter_settings = {k:v for k,v in self.filter_settings.items() if k in self.filter_types}
@@ -188,8 +189,6 @@ class Rocqiomics:
             filter_settings=self.filter_settings,
             extraction_settings_yaml_filepath=extraction_settings_yaml_filepath,
         )
-
-        self.logger.info('AAAAAAAAAAA')
 
     def __len__(self):
         return len(self.dataset)
