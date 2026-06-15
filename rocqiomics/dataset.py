@@ -64,7 +64,8 @@ class AugmentedDataset(monai.data.Dataset):
             if isinstance(original_entry, dict):
                 # Add all *_path entries automatically
                 for key, value in original_entry.items():
-                    metadata[f"{key}_path"] = value
+                    if 'image' in key or 'mask' in key:
+                        metadata[f"{key}_path"] = value
             else:
                 # Fallback if data is just a path string
                 metadata["image_path"] = original_entry
