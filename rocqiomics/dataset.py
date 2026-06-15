@@ -57,13 +57,17 @@ class AugmentedDataset(monai.data.Dataset):
 
             # Store augmentation index
             metadata['augmentation'] = aug_index
+           
+            # Extract original entry
+            original_entry = self.data[image_index]
 
-            # Store original path using image_index
-            original_path = self.data[image_index]
-            if isinstance(original_path, dict):
-                original_path = original_path.get("image", original_path)
-
-            metadata[f"{image_index}_path"] = original_path
+            if isinstance(original_entry, dict):
+                # Add all *_path entries automatically
+                for key, value in original_entry.items():
+                    metadata[f"{key}_path"] = value
+            else:
+                # Fallback if data is just a path string
+                metadata["image_path"] = original_entry
 
             loaded_data['metadata'] = metadata
 
