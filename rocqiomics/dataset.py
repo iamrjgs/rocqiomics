@@ -49,11 +49,23 @@ class AugmentedDataset(monai.data.Dataset):
         else:
             loaded_data = base_data    
     
-        # Add augmentation index to metadata
-        if isinstance(loaded_data, dict) and 'metadata' in loaded_data:
+    
+        # Add metadata
+        if isinstance(loaded_data, dict):
             loaded_data = dict(loaded_data)
-            loaded_data['metadata'] = dict(loaded_data['metadata'])
-            loaded_data['metadata']['augmentation'] = aug_index
+            metadata = dict(loaded_data.get('metadata', {}))
+
+            # Store augmentation index
+            metadata['augmentation'] = aug_index
+
+            # Store original path using image_index
+            original_path = self.data[image_index]
+            if isinstance(original_path, dict):
+                original_path = original_path.get("image", original_path)
+
+            metadata[f"{image_index}_path"] = original_path
+
+            loaded_data['metadata'] = metadata
 
         # Preprocess image/mask data
         if self.preprocessing is not None:
