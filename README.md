@@ -2,7 +2,7 @@
 
 **A modern radiomics framework bridging classical radiomics and deep learning pipelines.**
 
-`rocqiomics` wraps validated radiomics engines in a flexible, MONAI-inspired interface, with tooling designed for augmentation, perturbation analysis, and voxel-wise modeling workflows.
+**`rocqiomics`** wraps validated radiomics engines in a flexible, MONAI-inspired interface, with tooling designed for augmentation, perturbation analysis, and voxel-wise modeling workflows.
 
 ---
 
@@ -10,7 +10,7 @@
 
 - ✅ Radiomics pipeline with deep-learning–inspired **data dictionary API**
 - ✅ Native **MONAI transform** support
-- ✅ **Voxel-wise feature extraction**
+- ✅ **Voxel-wise** feature extraction
 - ✅ Built for **Habitat Radiomics**
 - ✅ Multi-engine backend (**PyRadiomics**, **fastrad**)
 
@@ -18,7 +18,7 @@
 
 ## 🚀 Overview
 
-`rocqiomics` provides:
+**`rocqiomics`** provides:
 
 ### 🔬 Radiomics from validated engines
 - Supports **PyRadiomics** and **fastrad**
@@ -82,7 +82,6 @@ Clusters voxels based on feature vectors across channels:
 - Optional feature normalization
 - Batch-wise processing for large 3D volumes
 
----
 
 ### 🔹 `RadiomicsHabitatGenerator`
 
@@ -100,42 +99,6 @@ Enables segmentation of images into biologically meaningful **radiomic habitats*
 - Augmentation-aware pipelines
 - Designed for large-scale voxel-based workflows
 
----
-
-## 🔄 Workflow
-
-Typical pipeline:
-
-Image + Mask
-↓
-MONAI preprocessing / augmentations
-
-↓
-
-Rocqiomics (feature extraction)
-
-↓
-
-Voxel-wise feature maps
-
-↓
-
-HabitatGenerator (clustering)
-
-↓
-
-Habitat maps
-
-
-## 🧪 Design Philosophy
-
-- **Composable** → Built around MONAI-style transforms  
-- **Engine-agnostic** → Wraps validated radiomics engines  
-- **Voxel-first** → Designed for spatial feature modeling  
-- **Scalable** → Supports batch and disk-based workflows  
-
----
-
 ## 📦 Installation
 
 ```bash
@@ -144,6 +107,7 @@ pip install rocqiomics
 git clone https://github.com/yourusername/rocqiomics.git
 cd rocqiomics
 pip install -e .
+```
 
 ## 📚 Dependencies
 # Core
