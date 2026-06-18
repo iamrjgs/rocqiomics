@@ -49,7 +49,6 @@ class AugmentedDataset(monai.data.Dataset):
         else:
             loaded_data = base_data    
     
-    
         # Add metadata
         if isinstance(loaded_data, dict):
             loaded_data = dict(loaded_data)
@@ -62,7 +61,7 @@ class AugmentedDataset(monai.data.Dataset):
             original_entry = self.data[image_index]
 
             if isinstance(original_entry, dict):
-                # Add all *_path entries automatically
+                # Add image_path and mask_path entries to metadata
                 for key, value in original_entry.items():
                     if 'image' in key or 'mask' in key:
                         metadata[f"{key}_path"] = value

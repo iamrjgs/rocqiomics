@@ -25,7 +25,6 @@ from rocqiomics.utils import (
 
 class Rocqiomics:
     def __init__(self,
-                data_dicts: Optional[List[Dict]]=None,
                 load_transform: Optional[monai.transforms.Transform]=None,
                 preprocessing: Optional[monai.transforms.Transform]=None,
                 augmentations: Optional[List[Optional[monai.transforms.Transform]]]=None,
@@ -41,7 +40,6 @@ class Rocqiomics:
                 filter_types: List[str]=None,
                 filter_settings: Optional[Dict]=None,
                 extraction_settings_yaml_filepath: Optional[str]=None,
-                case_ids: Optional[List[str]]=None,
                 case_limit: Optional[int]=None,
                 engine: str="pyradiomics",
                 device: str="cpu",
@@ -69,12 +67,6 @@ class Rocqiomics:
         You can optionally turn on Pyradiomics settings by providing a path to a Pyradiomics settings YAML file in `extraction_settings_yaml_filepath`.
 
         Parameters:
-            data_dicts (Optional[List[Dict]]): List of dictionaries containing case data. Each data dict should have fields:
-                - image (Union[str, Path]): Path to image [REQUIRED]
-                - mask (Union[str, Path]): Path to segmentation mask [REQUIRED]
-                - case_id (Optional[str]): String id assigned to case. Will be called whatever id_col is set as  [OPTIONAL]
-                - metadata (Optional[Dict]): Dictionary containing additional metadata fields (e.g. label, modality, timepoint) [OPTIONAL]
-            
             load_transform (Optional[monai.transforms.Transform]): Custom transform for image/mask loading. Leave as None
             to use default loading transform.
 
@@ -117,6 +109,8 @@ class Rocqiomics:
 
         # Initialize pipeline data containers
         self.results: List[Dict] = []
+        self.data_dicts: List[Dict] = []
+        self.dataset = None
         self.excluded_cases: List[str] = []
         self.runtime_errors: List[str] = []
 
@@ -125,11 +119,8 @@ class Rocqiomics:
         self.id_col: str = id_col
         self.device: torch.device = self._set_device(device)
         self.engine: str = engine
-        
-        # Initialize logging
-        self.pipeline_logging_level = pipeline_logging_level or logging.INFO 
-        self.extractor_logging_level = extractor_logging_level or logging.WARNING 
-        self.logger = self._set_loggers()
+        self.case_limit = case_limit
+        self.validate_inputs = validate_inputs
 
         # Set settings for results saving
         self.save_results: bool = save_results
@@ -138,27 +129,33 @@ class Rocqiomics:
         self.save_dirpath = save_dirpath or os.path.join(os.getcwd(), "Results")
         self.save_results_to_existing_file: bool = save_results_to_existing_file
         
+        # Initialize logging
+        self.pipeline_logging_level = pipeline_logging_level or logging.INFO 
+        self.extractor_logging_level = extractor_logging_level or logging.WARNING 
+        self.logger = self._set_loggers()
+
         # Set monai transforms for loading, preprocessing, and augmentation
         self.load_transform = load_transform or self._default_load_transform(reader=reader)
         self.preprocessing = preprocessing
         self.augmentations = augmentations if augmentations is not None else []
-            
-        # Validate and set list of input data dicts
-        self.data_dicts, self.excluded_cases = self._initialize_data_dicts(
-            data_dicts=data_dicts,
-            case_ids=case_ids,
-            case_limit=case_limit,
-            validate_inputs=validate_inputs
-        )
+
         
-        # Set Dataset to handle loading, augmentation, and preprocessing
-        from rocqiomics.dataset import AugmentedDataset
-        self.dataset = AugmentedDataset(
-            data=self.data_dicts,
-            load_transform=self.load_transform,
-            preprocessing=self.preprocessing,
-            augmentations=self.augmentations
-        )
+        # # Validate and set list of input data dicts
+        # self.data_dicts, self.excluded_cases = self._initialize_data_dicts(
+        #     data_dicts=data_dicts,
+        #     case_ids=case_ids,
+        #     case_limit=case_limit,
+        #     validate_inputs=validate_inputs
+        # )
+        
+        # # Set Dataset to handle loading, augmentation, and preprocessing
+        # from rocqiomics.dataset import AugmentedDataset
+        # self.dataset = AugmentedDataset(
+        #     data=self.data_dicts,
+        #     load_transform=self.load_transform,
+        #     preprocessing=self.preprocessing,
+        #     augmentations=self.augmentations
+        # )
 
         # Set extraction settings
         self.voxel_based: bool = voxel_based
@@ -193,6 +190,30 @@ class Rocqiomics:
     def __len__(self):
         return len(self.dataset)
     
+    def _initialize_dataset(self, data_dicts, case_ids=None):
+        # Validate and set list of input data dicts
+        self.data_dicts, self.excluded_cases = self._initialize_data_dicts(
+            data_dicts=data_dicts,
+            case_ids=case_ids,
+            case_limit=self.case_limit,
+            validate_inputs=self.validate_inputs
+        )
+        # Set Dataset to handle loading, augmentation, and preprocessing
+        from rocqiomics.dataset import AugmentedDataset
+        self.dataset = AugmentedDataset(
+            data=self.data_dicts,
+            load_transform=self.load_transform,
+            preprocessing=self.preprocessing,
+            augmentations=self.augmentations
+        )
+
+        if not self.data_dicts:
+            raise ValueError("Data dicts are empty, no cases to process.")
+        if not self.dataset:
+            raise ValueError("Dataset failed to initialize.")
+
+        self.logger.info(f'Pipeline Initialized | Engine: {self.engine} | Cases: {len(self)} | Excluded cases: {len(self.get_excluded_cases())}')
+
     def _run_case(self, idx, case):
         start_time = time.perf_counter()
 
@@ -218,15 +239,21 @@ class Rocqiomics:
 
         return {
             'result' : result,
+            'case_id' : case_id,
             'image' : image,
             'mask' : mask,
             'metadata' : metadata
         }
         
-    def run_pipeline(self):
-
-        self.logger.info(f'Pipeline Initialized | Engine: {self.engine} | Cases: {len(self)} | Excluded cases: {len(self.get_excluded_cases())}')
-
+    def run_pipeline(self, data_dicts=None, case_ids=None):
+        """
+        data_dicts (Optional[List[Dict]]): List of dictionaries containing case data. Each data dict should have fields:
+                - image (Union[str, Path]): Path to image [REQUIRED]
+                - mask (Union[str, Path]): Path to segmentation mask [REQUIRED]
+                - case_id (Optional[str]): String id assigned to case. Will be called whatever id_col is set as  [OPTIONAL]
+                - metadata (Optional[Dict]): Dictionary containing additional metadata fields (e.g. label, modality, timepoint) [OPTIONAL]
+        """
+        self._initialize_dataset(data_dicts, case_ids=case_ids)
         for idx, case in enumerate(self.dataset):
             try:
                 results_dict = self._run_case(idx, case)
@@ -240,10 +267,15 @@ class Rocqiomics:
 
         return self.get_results()
 
-    def run_generator(self):
-
-        self.logger.info(f'Pipeline Initialized | Engine: {self.engine} | Cases: {len(self)} | Excluded cases: {len(self.get_excluded_cases())}')
-
+    def run_generator(self, data_dicts=None, case_ids=None):
+        """
+        data_dicts (Optional[List[Dict]]): List of dictionaries containing case data. Each data dict should have fields:
+                - image (Union[str, Path]): Path to image [REQUIRED]
+                - mask (Union[str, Path]): Path to segmentation mask [REQUIRED]
+                - case_id (Optional[str]): String id assigned to case. Will be called whatever id_col is set as  [OPTIONAL]
+                - metadata (Optional[Dict]): Dictionary containing additional metadata fields (e.g. label, modality, timepoint) [OPTIONAL]
+        """
+        self._initialize_dataset(data_dicts, case_ids=case_ids)
         for idx, case in enumerate(self.dataset):
             try:
                 yield self._run_case(idx, case)
@@ -356,7 +388,7 @@ class Rocqiomics:
         if original_image is not None:
             maps = {k:resample_to_target_image(v, tensor_to_sitk(original_image)) for k,v in maps.items()}
 
-        # Add case metadata to diagnostic data
+        # Add case metadata       to diagnostic data
         case_data[self.id_col] = case_id
         if metadata is not None:
             for key, mdata in metadata.items():
@@ -398,7 +430,7 @@ class Rocqiomics:
 
         # If desired, validate data prior to extraction and only retain data_dicts that pass all tests
         if validate_inputs:
-            self.logger.info('Validating images and masks...')
+            self.logger.info('Validating images and masks.')
             data_dicts, excluded_cases = self._validate_input_data_and_exclude_cases_with_errors(data_dicts)
 
         return data_dicts, excluded_cases
@@ -488,7 +520,7 @@ class Rocqiomics:
         classes = feature_classes or ["shape", "firstorder", "glcm", "gldm", "glrlm", "glszm", "ngtdm"]
         # Handle shape case when image is 2D
         if "shape" in classes:
-            if is2D(sitk.ReadImage(self.data_dicts[0]['image'])) or self.force_2D:
+            if self.force_2D:
                 classes = ["shape2D" if f == "shape" else f for f in classes]
         self.feature_classes = classes
 

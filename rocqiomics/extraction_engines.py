@@ -75,7 +75,7 @@ class PyradiomicsExtractor(FeatureExtractionEngine):
     def prepare_extractor(
         self,
         label=1,
-        voxel_based_settings={},
+        voxel_based_settings=None,
         feature_classes=None,
         features=None,
         filter_types=None,
@@ -130,6 +130,9 @@ class PyradiomicsExtractor(FeatureExtractionEngine):
                 "additionalInfo": additional_info,
             },
         }
+
+        voxel_based_settings = voxel_based_settings if voxel_based_settings is not None else {}
+        params_dict['voxelSetting'] = voxel_based_settings
 
         if bin_width is not None:
             params_dict["setting"]["binWidth"] = bin_width
