@@ -20,7 +20,7 @@ class HabitatGenerator:
         "birch" : BirchClusteringAlgorithm
     }
 
-    def __init__(self, channels, algorithm, n_clusters=4, batch_size=25, normalize=True, **algorithm_kwargs):
+    def __init__(self, channels, algorithm, n_clusters=4, batch_size=50, normalize=True, **algorithm_kwargs):
         self.channels = self._prepare_channels(channels)
         self.batch_size = batch_size
         self.normalize = normalize
