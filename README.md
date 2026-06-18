@@ -108,21 +108,6 @@ cd rocqiomics
 pip install -e .
 ```
 
-## Dependencies
-# Core
-
-monai
-torch
-SimpleITK
-numpy
-pydicom
-itk
-
-# Optional engines
-
-pyradiomics
-fastrad
-
 ## References
 
 [1] The MONAI Consortium. (2020). Project MONAI. Zenodo. https://doi.org/10.5281/zenodo.4323059
