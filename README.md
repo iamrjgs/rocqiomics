@@ -1,8 +1,8 @@
-# 🧠 rocqiomics
+# rocqiomics
 
 **A modern radiomics framework bridging classical radiomics and deep learning pipelines.**
 
-**`rocqiomics`** wraps validated radiomics engines in a flexible, MONAI-inspired interface, with tooling designed for augmentation, perturbation analysis, and voxel-wise modeling workflows.
+**`rocqiomics`** wraps validated radiomics engines in a flexible, MONAI-inspired interface and features tooling designed with augmentation, perturbation analysis, and voxel-wise modeling workflows in mind.
 
 ---
 
@@ -16,27 +16,27 @@
 
 ---
 
-## 🚀 Overview
+## Overview
 
 **`rocqiomics`** provides:
 
-### 🔬 Radiomics from validated engines
+### 🔹 Radiomics from validated engines
 - Supports **PyRadiomics** and **fastrad**
 - Maintains IBSI-compliant feature extraction
 - Adds a clean, modern Python interface
 
-### 🔄 MONAI-native pipelines
+### 🔹 MONAI-native pipelines
 - Direct support for `monai.transforms`
 - Enables complex preprocessing and augmentation workflows
 - Simplifies perturbation-based radiomics
 
-### 🧩 Habitat Radiomics support
+### 🔹 Habitat Radiomics support
 - Designed for voxel-wise feature extraction
 - Enables clustering into spatially distinct **image habitats**
 
 ---
 
-## 🏗️ Core Components
+## Core Components
 
 The library is built around three main classes:
 
@@ -99,7 +99,7 @@ Enables segmentation of images into biologically meaningful **radiomic habitats*
 - Augmentation-aware pipelines
 - Designed for large-scale voxel-based workflows
 
-## 📦 Installation
+## Installation
 
 ```bash
 pip install rocqiomics
@@ -109,7 +109,7 @@ cd rocqiomics
 pip install -e .
 ```
 
-## 📚 Dependencies
+## Dependencies
 # Core
 
 monai
