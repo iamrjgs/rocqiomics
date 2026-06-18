@@ -16,7 +16,6 @@ import torch
 
 from rocqiomics.input_validation import get_input_validation_tests
 from rocqiomics.utils import (
-    is2D,
     tensor_to_sitk,
     split_dataframe_by_unique_values_in_columns,
     resample_to_target_image,
@@ -87,7 +86,6 @@ class Rocqiomics:
             filter_settings (Dict): Configuration of filter settings per filter type.
             extraction_settings_yaml_filepath (Optional[str]): YAML file path with extraction parameters. IMPORTANT: IF YOU USE THIS, THE YAML FILE SETTINGS WILL OVERRIDE ALL OTHER SETTINGS.
 
-            case_ids (Optional[List[str]]): List of case_ids you want to filter by. Leave as None if extracting from all cases.
             case_limit (Optional[int]): Maximum number of cases to process.
 
             engine (str): Feature extraction engine (only Pyradiomics for now).
@@ -172,7 +170,7 @@ class Rocqiomics:
         self.features = features
 
         # Set radiomics feature extractor
-        from rocqiomics.extraction_engines import MAP_ENGINE
+        from rocqiomics.extraction_engines.engine_map import MAP_ENGINE
         self.extractor = MAP_ENGINE(self.engine)(
             label=self.label,
             voxel_based=self.voxel_based,
@@ -252,6 +250,8 @@ class Rocqiomics:
                 - mask (Union[str, Path]): Path to segmentation mask [REQUIRED]
                 - case_id (Optional[str]): String id assigned to case. Will be called whatever id_col is set as  [OPTIONAL]
                 - metadata (Optional[Dict]): Dictionary containing additional metadata fields (e.g. label, modality, timepoint) [OPTIONAL]
+        
+        case_ids (Optional[List[str]]): List of case_ids you want to filter by. Leave as None if extracting from all cases.
         """
         self._initialize_dataset(data_dicts, case_ids=case_ids)
         for idx, case in enumerate(self.dataset):
@@ -274,6 +274,8 @@ class Rocqiomics:
                 - mask (Union[str, Path]): Path to segmentation mask [REQUIRED]
                 - case_id (Optional[str]): String id assigned to case. Will be called whatever id_col is set as  [OPTIONAL]
                 - metadata (Optional[Dict]): Dictionary containing additional metadata fields (e.g. label, modality, timepoint) [OPTIONAL]
+        
+        case_ids (Optional[List[str]]): List of case_ids you want to filter by. Leave as None if extracting from all cases.
         """
         self._initialize_dataset(data_dicts, case_ids=case_ids)
         for idx, case in enumerate(self.dataset):
