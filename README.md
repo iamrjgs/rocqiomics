@@ -26,14 +26,13 @@
 - Adds a clean, modern Python interface
 
 ### 🔹 MONAI-native pipelines
-- Direct support for `monai.transforms`
+- Direct support for Monai dictionary transforms (e.g. ScaleIntensityd, Spacingd)
 - Enables complex preprocessing and augmentation workflows
 - Simplifies perturbation-based radiomics
 
 ### 🔹 Habitat Radiomics support
 - Designed for voxel-wise feature extraction
 - Enables clustering into spatially distinct **image habitats**
-
 ---
 
 ## Core Components
@@ -104,7 +103,7 @@ Enables segmentation of images into biologically meaningful **radiomic habitats*
 ```bash
 pip install rocqiomics
 
-git clone https://github.com/yourusername/rocqiomics.git
+git clone https://github.com/iamrjgs/rocqiomics.git
 cd rocqiomics
 pip install -e .
 ```
