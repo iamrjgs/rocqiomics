@@ -7,7 +7,7 @@ import numpy as np
 import SimpleITK as sitk
 import rocqiomics as rq
 
-from ....rocqiomics.habitat_generator.habitat_generator import HabitatGenerator
+from .habitat_generator import HabitatGenerator
 
 class RadiomicsHabitatGenerator:
     def __init__(self,
