@@ -170,14 +170,12 @@ def split_dataframe_by_unique_values_in_columns(df, columns):
     
     return unique_vals_result_dicts
 
-
 def mask_nonzero_slices_per_dimension(mask):
     arr = sitk.GetArrayFromImage(mask)
     slices_z = [i for i in range(arr.shape[0]) if np.any(arr[i, :, :])]
     slices_y = [j for j in range(arr.shape[1]) if np.any(arr[:, j, :])]
     slices_x = [k for k in range(arr.shape[2]) if np.any(arr[:, :, k])]
     return [slices_x, slices_y, slices_z]
-
 
 def is2D(image):
     return sum(dim > 1 for dim in image.GetSize()) == 2

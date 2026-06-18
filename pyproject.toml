@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "rocqiomics"
-version = "1.0.0"
+version = "2.0.0"
 description = "Deep learning and augmentation-friendly radiomics library."
 readme = "README.md"
 requires-python = ">=3.8"
@@ -12,12 +12,14 @@ authors = [
     { name = "Ricardo Garcia Santiago", email = "ricardo.j.garcia.s@gmail.com" }
 ]
 dependencies = [
-    "monai",
-    "pydicom",
     "numpy",
+    "pandas",
+    "scikit-learn",
+    "pydicom",
     "itk",
     "SimpleITK",
-    "torch"
+    "torch",
+    "monai",
 ]
 
 [tool.setuptools.packages.find]

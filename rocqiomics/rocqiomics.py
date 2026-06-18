@@ -60,7 +60,7 @@ class Rocqiomics:
         *** IMPORTANT ***
         This package disables all preprocessing steps (intensity normalization, resampling, etc.) performed by feature extraction 
         engines (e.g. Pyradiomics) by default. We recommend these and any other preprocessing steps be implemented with Monai transforms
-        in the preprocessing keyword. The exception to this is gray-level discretization step (whether fixed bin width or fixed bin size), which is 
+        included in the preprocessing keyword. The exception to this is gray-level discretization step (whether fixed bin width or fixed bin size), which is 
         unavoidably performed by Pyradiomics at extraction time prior to extracting texture features. 
         
         You can optionally turn on Pyradiomics settings by providing a path to a Pyradiomics settings YAML file in `extraction_settings_yaml_filepath`.
@@ -86,9 +86,9 @@ class Rocqiomics:
             filter_settings (Dict): Configuration of filter settings per filter type.
             extraction_settings_yaml_filepath (Optional[str]): YAML file path with extraction parameters. IMPORTANT: IF YOU USE THIS, THE YAML FILE SETTINGS WILL OVERRIDE ALL OTHER SETTINGS.
 
-            case_limit (Optional[int]): Maximum number of cases to process.
+            case_limit (Optional[int]): Max number of cases to process.
 
-            engine (str): Feature extraction engine (only Pyradiomics for now).
+            engine (str): Feature extraction engine.
             device (str): Processing device ("cpu" or "gpu").
 
             label (int): Segmentation label ID used for feature extraction.
@@ -136,24 +136,6 @@ class Rocqiomics:
         self.load_transform = load_transform or self._default_load_transform(reader=reader)
         self.preprocessing = preprocessing
         self.augmentations = augmentations if augmentations is not None else []
-
-        
-        # # Validate and set list of input data dicts
-        # self.data_dicts, self.excluded_cases = self._initialize_data_dicts(
-        #     data_dicts=data_dicts,
-        #     case_ids=case_ids,
-        #     case_limit=case_limit,
-        #     validate_inputs=validate_inputs
-        # )
-        
-        # # Set Dataset to handle loading, augmentation, and preprocessing
-        # from rocqiomics.dataset import AugmentedDataset
-        # self.dataset = AugmentedDataset(
-        #     data=self.data_dicts,
-        #     load_transform=self.load_transform,
-        #     preprocessing=self.preprocessing,
-        #     augmentations=self.augmentations
-        # )
 
         # Set extraction settings
         self.voxel_based: bool = voxel_based
@@ -210,7 +192,7 @@ class Rocqiomics:
         if not self.dataset:
             raise ValueError("Dataset failed to initialize.")
 
-        self.logger.info(f'Pipeline Initialized | Engine: {self.engine} | Cases: {len(self)} | Excluded cases: {len(self.get_excluded_cases())}')
+        self.logger.info(f'Extraction Pipeline Initialized | Engine: {self.engine} | Cases: {len(self)} | Excluded cases: {len(self.get_excluded_cases())}')
 
     def _run_case(self, idx, case):
         start_time = time.perf_counter()
@@ -284,6 +266,13 @@ class Rocqiomics:
             except Exception as e:
                 self._handle_case_error(case=case, error=e)
     
+    def _default_load_transform(self, reader) -> monai.transforms.Transform:
+        return monai.transforms.LoadImaged(keys=['image', 'mask'], 
+                        image_only=False, 
+                        ensure_channel_first=True, 
+                        reader=reader
+                        )
+
     def get_data_dicts(self):
         return self.data_dicts
 
@@ -299,6 +288,7 @@ class Rocqiomics:
             df = df.set_index(self.id_col)
 
         return df
+    
 
     def save_results_df(self):
         save_filepath = ''
@@ -507,13 +497,6 @@ class Rocqiomics:
         save_filename = '_'.join(filter(None, save_filename_pieces)) + '.nrrd'
 
         return os.path.join(save_dir, save_filename)
-
-    def _default_load_transform(self, reader) -> monai.transforms.Transform:
-        return monai.transforms.LoadImaged(keys=['image', 'mask'], 
-                        image_only=False, 
-                        ensure_channel_first=True, 
-                        reader=reader
-                        )
 
     def _set_device(self, device):
         return torch.device('cuda' if (torch.cuda.is_available() and (device == 'cuda')) else 'cpu')

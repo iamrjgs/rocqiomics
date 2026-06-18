@@ -1,7 +1,5 @@
 from rocqiomics.rocqiomics import Rocqiomics
-from . import radscore
-from . import utils
-from . import transforms
-from . import personal_utils
+from rocqiomics.habitat_generator.habitat_generator import HabitatGenerator
+from rocqiomics.habitat_generator.radiomics_habitat_generator import RadiomicsHabitatGenerator
 
 
