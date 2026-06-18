@@ -107,15 +107,25 @@ Enables segmentation of images into biologically meaningful **radiomic habitats*
 Typical pipeline:
 
 Image + Mask
+
 ↓
+
 MONAI preprocessing / augmentations
+
 ↓
+
 Rocqiomics (feature extraction)
+
 ↓
+
 Voxel-wise feature maps
+
 ↓
+
 HabitatGenerator (clustering)
+
 ↓
+
 Habitat maps
 
 
