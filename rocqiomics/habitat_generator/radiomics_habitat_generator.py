@@ -25,6 +25,7 @@ class RadiomicsHabitatGenerator:
                  save_fmaps_dirpath=None,
                  save_vector_dirpath=None,
                  average_augmentations=False,
+                 include_spatial_features=False
                  ):
         self.preprocessing = preprocessing
         self.augmentations = augmentations if augmentations is not None else []
@@ -39,6 +40,7 @@ class RadiomicsHabitatGenerator:
         self.save_vector_dirpath = save_vector_dirpath
         self.save_fmaps_dirpath = save_fmaps_dirpath
         self.average_augmentations = average_augmentations
+        self.include_spatial_features = include_spatial_features
 
         if voxel_based_settings is None:
             self.voxel_based_settings = {
@@ -81,7 +83,8 @@ class RadiomicsHabitatGenerator:
         self.habitat_generator = HabitatGenerator(
             channels=self.channels,
             algorithm=self.algorithm_name,
-            n_clusters=self.n_clusters
+            n_clusters=self.n_clusters,
+            include_spatial_features=self.include_spatial_features
         )
     
     def _check_or_set_channels(self, map_dict):
@@ -297,6 +300,7 @@ class RadiomicsHabitatGenerator:
             'save_vector_dirpath': self.save_vector_dirpath,
             'save_fmaps_dirpath' : self.save_fmaps_dirpath,
             'average_augmentations': self.average_augmentations,
+            'include_spatial_features' : self.include_spatial_features,
             'habitat_generator_state': self.habitat_generator.prepare_state_for_saving(),
         }
 
@@ -323,6 +327,7 @@ class RadiomicsHabitatGenerator:
             save_vector_dirpath=state['save_vector_dirpath'],
             save_fmaps_dirpath=state['save_fmaps_dirpath'],
             average_augmentations=state['average_augmentations'],
+            include_spatial_features=state['include_spatial_features']
         )
 
         obj.channels = state['channels']
