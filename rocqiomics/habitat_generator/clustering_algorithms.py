@@ -40,7 +40,7 @@ class GMMClustering(VoxelClusteringAlgorithm):
         return output.reshape(shape)
     
 
-class BirchClusteringAlgorithm(VoxelClusteringAlgorithm):
+class BirchClustering(VoxelClusteringAlgorithm):
     def __init__(self, n_clusters, mean_=None, std_=None, batch_size=100, **kwargs):
         super().__init__(n_clusters, mean_=mean_, std_=std_)
         self.kwargs = kwargs
