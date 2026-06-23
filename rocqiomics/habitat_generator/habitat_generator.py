@@ -8,7 +8,7 @@ import SimpleITK as sitk
 from .clustering_algorithms import (
     KMeansClustering,
     GMMClustering,
-    BirchClusteringAlgorithm
+    BirchClustering
 )
 
 class HabitatGenerator:
@@ -17,7 +17,7 @@ class HabitatGenerator:
         "kmeans": KMeansClustering,
         "gmm": GMMClustering,
         "gaussian_mixture": GMMClustering,
-        "birch" : BirchClusteringAlgorithm
+        "birch" : BirchClustering
     }
 
     def __init__(self,
