@@ -167,64 +167,6 @@ class Rocqiomics:
             extraction_settings_yaml_filepath=extraction_settings_yaml_filepath,
         )
 
-    def __len__(self):
-        return len(self.dataset)
-    
-    def _initialize_dataset(self, data_dicts, case_ids=None):
-        # Validate and set list of input data dicts
-        self.data_dicts, self.excluded_cases = self._initialize_data_dicts(
-            data_dicts=data_dicts,
-            case_ids=case_ids,
-            case_limit=self.case_limit,
-            validate_inputs=self.validate_inputs
-        )
-        # Set Dataset to handle loading, augmentation, and preprocessing
-        from rocqiomics.dataset import AugmentedDataset
-        self.dataset = AugmentedDataset(
-            data=self.data_dicts,
-            load_transform=self.load_transform,
-            preprocessing=self.preprocessing,
-            augmentations=self.augmentations
-        )
-
-        if not self.data_dicts:
-            raise ValueError("Data dicts are empty, no cases to process.")
-        if not self.dataset:
-            raise ValueError("Dataset failed to initialize.")
-
-        self.logger.info(f'Extraction Pipeline Initialized | Engine: {self.engine} | Cases: {len(self)} | Excluded cases: {len(self.get_excluded_cases())}')
-
-    def _run_case(self, idx, case):
-        start_time = time.perf_counter()
-
-        # Get loaded, preprocessed, and (potentially) augmented data
-        case_id, image, mask, metadata = (
-            case.get(self.id_col),
-            case.get("image"),
-            case.get("mask"),
-            case.get("metadata"),
-        )
-                
-        # Extract feature vector or map depending on voxel_based extraction mode
-        extraction_results = self.extractor.extract(image, mask)
-
-        # Handle results metadata addition and/or saving depending on voxel_based extraction mode
-        if self.voxel_based:
-            result = self._handle_feature_map(case_id, extraction_results, metadata, image)
-        else:
-            result = self._handle_feature_vectors(case_id, extraction_results, metadata)
-
-        # Log results
-        self._log_case_data(idx, case, start_time)
-
-        return {
-            'result' : result,
-            'case_id' : case_id,
-            'image' : image,
-            'mask' : mask,
-            'metadata' : metadata
-        }
-        
     def run_pipeline(self, data_dicts=None, case_ids=None):
         """
         data_dicts (Optional[List[Dict]]): List of dictionaries containing case data. Each data dict should have fields:
@@ -265,13 +207,6 @@ class Rocqiomics:
                 yield self._run_case(idx, case)
             except Exception as e:
                 self._handle_case_error(case=case, error=e)
-    
-    def _default_load_transform(self, reader) -> monai.transforms.Transform:
-        return monai.transforms.LoadImaged(keys=['image', 'mask'], 
-                        image_only=False, 
-                        ensure_channel_first=True, 
-                        reader=reader
-                        )
 
     def get_data_dicts(self):
         return self.data_dicts
@@ -289,7 +224,6 @@ class Rocqiomics:
 
         return df
     
-
     def save_results_df(self):
         save_filepath = ''
         results_df = self.get_results()
@@ -357,6 +291,94 @@ class Rocqiomics:
             df.to_excel(filepath)
             self.logger.info(f'Results saved to {filepath}')
 
+    def _run_case(self, idx, case):
+        start_time = time.perf_counter()
+
+        # Get loaded, preprocessed, and (potentially) augmented data
+        case_id, image, mask, metadata = (
+            case.get(self.id_col),
+            case.get("image"),
+            case.get("mask"),
+            case.get("metadata"),
+        )
+                
+        # Extract feature vector or map depending on voxel_based extraction mode
+        extraction_results = self.extractor.extract(image, mask)
+
+        # Handle results metadata addition and/or saving depending on voxel_based extraction mode
+        if self.voxel_based:
+            result = self._handle_feature_map(case_id, extraction_results, metadata, image)
+        else:
+            result = self._handle_feature_vectors(case_id, extraction_results, metadata)
+
+        # Log results
+        self._log_case_data(idx, case, start_time)
+
+        return {
+            'result' : result,
+            'case_id' : case_id,
+            'image' : image,
+            'mask' : mask,
+            'metadata' : metadata
+        }
+    
+    def _initialize_dataset(self, data_dicts, case_ids=None):
+        # Validate and set list of input data dicts
+        self.data_dicts, self.excluded_cases = self._initialize_data_dicts(
+            data_dicts=data_dicts,
+            case_ids=case_ids,
+            case_limit=self.case_limit,
+            validate_inputs=self.validate_inputs
+        )
+        # Set Dataset to handle loading, augmentation, and preprocessing
+        from rocqiomics.dataset import AugmentedDataset
+        self.dataset = AugmentedDataset(
+            data=self.data_dicts,
+            load_transform=self.load_transform,
+            preprocessing=self.preprocessing,
+            augmentations=self.augmentations
+        )
+
+        if not self.data_dicts:
+            raise ValueError("Data dicts are empty, no cases to process.")
+        if not self.dataset:
+            raise ValueError("Dataset failed to initialize.")
+
+        self.logger.info(f'Extraction Pipeline Initialized | Engine: {self.engine} | Cases: {len(self)} | Excluded cases: {len(self.get_excluded_cases())}')
+
+    def _initialize_data_dicts(self,
+                               data_dicts: Optional[List[Dict]],
+                               case_ids: Optional[List[str]],
+                               case_limit: Optional[int],
+                               validate_inputs: bool
+                               ) -> List[Dict]:
+        if data_dicts is None:
+            return [], []
+        
+        excluded_cases = []
+        
+        # If list of case_ids given, only preserve data_dicts with those case_ids
+        if case_ids:
+            data_dicts = [d for d in data_dicts if d.get(self.id_col) in case_ids]
+        
+        # If limit N of cases to consider given, only choose the top N cases
+        if case_limit is not None:
+            data_dicts = data_dicts[:case_limit]
+
+        # If desired, validate data prior to extraction and only retain data_dicts that pass all tests
+        if validate_inputs:
+            self.logger.info('Validating images and masks.')
+            data_dicts, excluded_cases = self._validate_input_data_and_exclude_cases_with_errors(data_dicts)
+
+        return data_dicts, excluded_cases
+
+    def _default_load_transform(self, reader) -> monai.transforms.Transform:
+        return monai.transforms.LoadImaged(keys=['image', 'mask'], 
+                        image_only=False, 
+                        ensure_channel_first=True, 
+                        reader=reader
+                        )
+
     def _handle_feature_vectors(self, case_id, feature_vect, metadata=None):
         # Add case metadata to feature vector
         feature_vect[self.id_col] = case_id
@@ -400,57 +422,6 @@ class Rocqiomics:
                 case_data=case_data
             )
         return result
-
-    def _initialize_data_dicts(self,
-                               data_dicts: Optional[List[Dict]],
-                               case_ids: Optional[List[str]],
-                               case_limit: Optional[int],
-                               validate_inputs: bool
-                               ) -> List[Dict]:
-        if data_dicts is None:
-            return [], []
-        
-        excluded_cases = []
-        
-        # If list of case_ids given, only preserve data_dicts with those case_ids
-        if case_ids:
-            data_dicts = [d for d in data_dicts if d.get(self.id_col) in case_ids]
-        
-        # If limit N of cases to consider given, only choose the top N cases
-        if case_limit is not None:
-            data_dicts = data_dicts[:case_limit]
-
-        # If desired, validate data prior to extraction and only retain data_dicts that pass all tests
-        if validate_inputs:
-            self.logger.info('Validating images and masks.')
-            data_dicts, excluded_cases = self._validate_input_data_and_exclude_cases_with_errors(data_dicts)
-
-        return data_dicts, excluded_cases
-
-    def _validate_input_data_and_exclude_cases_with_errors(self, data_dicts):
-        excluded_cases = []
-        tests = get_input_validation_tests()
-
-        for case in data_dicts:
-
-            for test_name, test_func in tests.items():
-                test_result = test_func(
-                    case,
-                    id_col=self.id_col,
-                    label=self.label
-                    )
-
-                # If test fails, error message saved in test_result
-                if len(test_result) > 0:
-                    excluded_cases.append({
-                        'case' : case,
-                        'failed_test' : test_name,
-                        'failed_test_result' : test_result
-                    })
-                    data_dicts.remove(case)
-                    break
-
-        return data_dicts, excluded_cases
  
     def _get_save_filepath(self, 
                            save_column_values=None, 
@@ -508,6 +479,31 @@ class Rocqiomics:
             if self.force_2D:
                 classes = ["shape2D" if f == "shape" else f for f in classes]
         self.feature_classes = classes
+
+    def _validate_input_data_and_exclude_cases_with_errors(self, data_dicts):
+        excluded_cases = []
+        tests = get_input_validation_tests()
+
+        for case in data_dicts:
+
+            for test_name, test_func in tests.items():
+                test_result = test_func(
+                    case,
+                    id_col=self.id_col,
+                    label=self.label
+                    )
+
+                # If test fails, error message saved in test_result
+                if len(test_result) > 0:
+                    excluded_cases.append({
+                        'case' : case,
+                        'failed_test' : test_name,
+                        'failed_test_result' : test_result
+                    })
+                    data_dicts.remove(case)
+                    break
+
+        return data_dicts, excluded_cases
 
     def _handle_case_error(self, case, error):
         self.logger.error(f'Runtime error \t {case[self.id_col]} \t {traceback.format_exc()}')
@@ -574,5 +570,8 @@ class Rocqiomics:
         run_time = time.perf_counter() - start_time
         self.logger.info(f'Case {idx}/{last_idx} done in {run_time:.2f}s\t{log_txt}')
         self.logger.debug(case)
+
+    def __len__(self):
+        return len(self.dataset)
 
 

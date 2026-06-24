@@ -142,16 +142,21 @@ def resample_to_target_image(img, target, is_mask=False, interpolator=None):
     resampler.SetReferenceImage(target)
     resampler.SetDefaultPixelValue(0)
 
+    original_dtype = img.GetPixelID()
+
     if is_mask:
         interpolator = sitk.sitkNearestNeighbor
     else:
         if interpolator is None:
             interpolator = sitk.sitkBSpline3
-            
+
     resampler.SetInterpolator(interpolator)
     img = resampler.Execute(img)
     img.CopyInformation(target)
     img = copy_sitk_metadata(img, target)
+
+    img = sitk.Cast(img, original_dtype)
+
     return img
                
 def split_dataframe_by_unique_values_in_columns(df, columns):

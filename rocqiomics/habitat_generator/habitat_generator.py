@@ -4,6 +4,7 @@ import warnings
 
 import numpy as np
 import SimpleITK as sitk
+from rocqiomics.utils import resample_to_target_image
 
 from .clustering_algorithms import (
     KMeansClustering,
@@ -151,7 +152,8 @@ class HabitatGenerator:
         return {
             'origin' : img.GetOrigin(),
             'spacing' : img.GetSpacing(),
-            'direction' : img.GetDirection()
+            'direction' : img.GetDirection(),
+            'size' : img.GetSize()
         }
 
     @staticmethod
@@ -173,35 +175,53 @@ class HabitatGenerator:
         img.SetSpacing(spacing)
         img.SetDirection(direction)
         return img
-
-    def _load_image_as_numpy(self, dd):
+    
+    @staticmethod
+    def full_mask_from_image(image):
+        mask = sitk.Image(image.GetSize(), sitk.sitkUInt8)
+        mask = sitk.Add(mask, 1)
+        mask.CopyInformation(image)
+        return mask
+    
+    def _load_image_as_sitk(self, dd):
         if 'image' not in dd:
             raise ValueError(f'Data dict missing image key: {dd}')
         
-        geometry_info = {}
-        
         image = dd['image']
+        geometry_info = {}
+
+        if isinstance(image, np.ndarray):
+            image = sitk.GetImageFromArray(image)
         if isinstance(image, sitk.Image):
             geometry_info = self.extract_geometry_info(image)
-            image = sitk.GetArrayFromImage(image)
         if isinstance(image, str):
             image = sitk.ReadImage(image)
             geometry_info = self.extract_geometry_info(image)
-            image = sitk.GetArrayFromImage(image)
 
-        if 'mask' in dd:
-            mask = dd['mask']
-        else:
-            mask = np.ones(image.shape[:3])
+        mask = dd['mask'] if 'mask' in dd else self.full_mask_from_image(image)
 
-        if isinstance(mask, sitk.Image):
-            mask = sitk.GetArrayFromImage(mask)
         if isinstance(mask, str):
             if os.path.exists(mask):
-                mask = sitk.GetArrayFromImage(sitk.ReadImage(mask))
+                mask = sitk.ReadImage(mask)
             else:
                 warnings.warn(f"Mask at path {mask} not found. Defaulting to whole-image mask.")
-                mask = np.ones(image.shape[:3])
+                mask = self.full_mask_from_image(image)
+
+        # Check if image and mask geometries match; resample mask to image geometry if not.
+        if not self._geometries_match(image, mask):
+            try:
+                mask = resample_to_target_image(mask, image, is_mask=True)
+                warnings.warn(f'Mask was resampled to image geometry (geometries did not match initially).')
+            except Exception as e:
+                raise ValueError(f'Mask could not be resampled to image space. Exception: {e}')
+  
+        return image, mask, geometry_info
+    
+    def _load_image_as_numpy(self, dd):
+        image, mask, geometry_info = self._load_image_as_sitk(dd)
+        
+        image = sitk.GetArrayFromImage(image)
+        mask = sitk.GetArrayFromImage(mask)
   
         return image, mask, geometry_info
  
@@ -233,6 +253,20 @@ class HabitatGenerator:
         var = np.maximum(var, 0)
         self.std_ = np.sqrt(var)
         self.std_[self.std_ < 1e-8] = 1.0
+
+    def _geometries_match(self, img1, img2, tol=1e-6):
+        info1 = self.extract_geometry_info(img1)
+        info2 = self.extract_geometry_info(img2)
+
+        if info1['size'] != info2['size']:
+            return False
+        if not np.allclose(info1['spacing'], info2['spacing'], atol=tol):
+            return False
+        if not np.allclose(info1['origin'], info2['origin'], atol=tol):
+            return False
+        if not np.allclose(info1['direction'], info2['direction'], atol=tol):
+            return False
+        return True
 
     def fit(self, data):
         if isinstance(data[0], np.ndarray):

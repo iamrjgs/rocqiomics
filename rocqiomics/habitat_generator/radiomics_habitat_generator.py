@@ -170,7 +170,7 @@ class RadiomicsHabitatGenerator:
         return savepath
     
     def _generate_maps_for_habitats(self, data_dicts):
-        # Run map generator to calculate maps dynamically (memory-efficient)
+        # Run map_extractor generator to calculate maps dynamically (memory-efficient)
         results = self.map_extractor.run_generator(data_dicts)
 
         data_dicts_for_habitats = []
