@@ -28,245 +28,24 @@ class HabitatGenerator:
                  batch_size=50,
                  normalize=True,
                  include_spatial_features=False,
-                 spatial_weight=1.0,
+                 channel_weights=None,
+                 spatial_weights=None,
                  **algorithm_kwargs):
         self.channels = self._prepare_channels(channels)
         self.batch_size = batch_size
         self.normalize = normalize
-        self.mean_ = None
-        self.std_ = None
+        self.mean_ = None # Computed later
+        self.std_ = None # Computed later
         self.algorithm_name = algorithm
         self.algorithm_kwargs = algorithm_kwargs
         self.n_clusters = n_clusters
-        self.algorithm = None
+        self.algorithm = None # Prepared later
         self.include_spatial_features = include_spatial_features
-        self.spatial_weight = spatial_weight
+        self.channel_weights = channel_weights
+        self.spatial_weights = spatial_weights
+        self.weights = None # Prepared later
         self.fitted = False
-        self._coord_cache = {}
-
-    def _prepare_channels(self, channels):
-        if isinstance(channels, list):
-            return {name: idx for idx, name in enumerate(channels)}
-        elif isinstance(channels, dict):
-            for k, v in channels.items():
-                if not isinstance(v, int):
-                    raise ValueError
-            return channels
-        else:
-            raise TypeError
-
-    def _select_channels(self, image_4d):
-        indices = list(self.channels.values())
-        if image_4d.shape[-1] <= max(indices):
-            raise ValueError
-        return image_4d[..., indices]
-
-    def _prepare_mask(self, mask, image_4d):
-        if mask is None:
-            return np.ones(image_4d.shape[:3], dtype=bool)
-        if mask.ndim == 4:
-            mask = mask[..., 0]
-        if mask.shape != image_4d.shape[:3]:
-            raise ValueError(f"Mask and image spatial dimensions don't match. Mask: {mask.shape}, Image: {image_4d.shape}")
-        return mask
-    
-    def _prepare_feature_vector(self, image_4d, mask, geometry_info=None):
-        if mask is None:
-            mask = np.ones(image_4d.shape[:3])
-            
-        vox = image_4d.reshape(-1, image_4d.shape[-1])
-        mask_flat = mask.reshape(-1).astype(bool)
-        vox = vox[mask_flat]
-
-        if self.include_spatial_features:
-            vox = self._append_spatial_features(
-                vox, mask_flat, image_4d.shape, geometry_info
-            )
-
-        return vox, mask_flat
-    
-    def _append_spatial_features(self, vox, mask_flat, img_shape, geometry_info=None):
-        key = img_shape[:3]
-
-        if geometry_info is not None:
-            spacing = np.array(geometry_info.get('spacing', (1.0, 1.0, 1.0)))
-            key = (img_shape[0], img_shape[1], img_shape[2], tuple(spacing))
-        else:
-            spacing = None
-
-        if key not in self._coord_cache:
-            coords = np.stack(
-                np.meshgrid(
-                    np.arange(img_shape[0]),
-                    np.arange(img_shape[1]),
-                    np.arange(img_shape[2]),
-                    indexing="ij"
-                ),
-                axis=-1
-            ).reshape(-1, 3)
-
-            if spacing is not None:
-                coords = coords * spacing
-
-            if spacing is not None:
-                norm = np.array(img_shape[:3]) * spacing
-            else:
-                norm = np.array(img_shape[:3])
-
-            coords = coords / norm
-            coords *= self.spatial_weight
-
-            self._coord_cache[key] = coords
-        else:
-            coords = self._coord_cache[key]
-
-        coords = coords[mask_flat]
-
-        return np.concatenate([vox, coords], axis=1)
-
-    def _prepare_algorithm(self):
-        key = self.algorithm_name.lower()
-        algo_class = self._ALGORITHM_REGISTRY[key]
-        return algo_class(
-            n_clusters=self.n_clusters,
-            mean_=self.mean_,
-            std_=self.std_,
-            batch_size=self.batch_size,
-            **self.algorithm_kwargs
-        )
-
-    def _prepare_X_list(self, images, masks, geometry_infos=None):
-        X_list = []
-        for img, mask, geom in zip(images, masks, geometry_infos):
-            vox, _ = self._prepare_feature_vector(img, mask, geom)
-            if vox.size > 0:
-                X_list.append(vox)
-        return X_list
-
-    def _iter_batches(self, items):
-        for k in range(0, len(items), self.batch_size):
-            yield items[k:k + self.batch_size]
-
-    @staticmethod
-    def extract_geometry_info(img):
-        return {
-            'origin' : img.GetOrigin(),
-            'spacing' : img.GetSpacing(),
-            'direction' : img.GetDirection(),
-            'size' : img.GetSize()
-        }
-
-    @staticmethod
-    def set_geometry_info(img, geometry_info):
-        dim = img.GetDimension()
-
-        origin = geometry_info.get('origin', (0.0,) * dim)
-        spacing = geometry_info.get('spacing', (1.0,) * dim)
-
-        default_direction = tuple(
-            1.0 if i == j else 0.0
-            for i in range(dim)
-            for j in range(dim)
-        )
-
-        direction = geometry_info.get('direction', default_direction)
-
-        img.SetOrigin(origin)
-        img.SetSpacing(spacing)
-        img.SetDirection(direction)
-        return img
-    
-    @staticmethod
-    def full_mask_from_image(image):
-        mask = sitk.Image(image.GetSize(), sitk.sitkUInt8)
-        mask = sitk.Add(mask, 1)
-        mask.CopyInformation(image)
-        return mask
-    
-    def _load_image_as_sitk(self, dd):
-        if 'image' not in dd:
-            raise ValueError(f'Data dict missing image key: {dd}')
-        
-        image = dd['image']
-        geometry_info = {}
-
-        if isinstance(image, np.ndarray):
-            image = sitk.GetImageFromArray(image)
-        if isinstance(image, sitk.Image):
-            geometry_info = self.extract_geometry_info(image)
-        if isinstance(image, str):
-            image = sitk.ReadImage(image)
-            geometry_info = self.extract_geometry_info(image)
-
-        mask = dd['mask'] if 'mask' in dd else self.full_mask_from_image(image)
-
-        if isinstance(mask, str):
-            if os.path.exists(mask):
-                mask = sitk.ReadImage(mask)
-            else:
-                warnings.warn(f"Mask at path {mask} not found. Defaulting to whole-image mask.")
-                mask = self.full_mask_from_image(image)
-
-        # Check if image and mask geometries match; resample mask to image geometry if not.
-        if not self._geometries_match(image, mask):
-            try:
-                mask = resample_to_target_image(mask, image, is_mask=True)
-                warnings.warn(f'Mask was resampled to image geometry (geometries did not match initially).')
-            except Exception as e:
-                raise ValueError(f'Mask could not be resampled to image space. Exception: {e}')
-  
-        return image, mask, geometry_info
-    
-    def _load_image_as_numpy(self, dd):
-        image, mask, geometry_info = self._load_image_as_sitk(dd)
-        
-        image = sitk.GetArrayFromImage(image)
-        mask = sitk.GetArrayFromImage(mask)
-  
-        return image, mask, geometry_info
- 
-    def _compute_stats(self, data):
-        total_sum = None
-        total_sq = None
-        total_n = 0
-        for batch in self._iter_batches(data):
-            for dd in batch:
-                img, mask, geometry_info = self._load_image_as_numpy(dd)
-                img = self._select_channels(img)
-                mask = self._prepare_mask(mask, img)
-                vox, _ = self._prepare_feature_vector(img, mask,geometry_info=geometry_info)
-                if vox.size == 0:
-                    continue
-                if total_sum is None:
-                    total_sum = vox.sum(axis=0)
-                    total_sq = (vox ** 2).sum(axis=0)
-                else:
-                    total_sum += vox.sum(axis=0)
-                    total_sq += (vox ** 2).sum(axis=0)
-                total_n += vox.shape[0]
-
-        if total_n == 0:
-            raise ValueError("No valid voxels found.")
-                
-        self.mean_ = total_sum / total_n
-        var = total_sq / total_n - self.mean_ ** 2
-        var = np.maximum(var, 0)
-        self.std_ = np.sqrt(var)
-        self.std_[self.std_ < 1e-8] = 1.0
-
-    def _geometries_match(self, img1, img2, tol=1e-6):
-        info1 = self.extract_geometry_info(img1)
-        info2 = self.extract_geometry_info(img2)
-
-        if info1['size'] != info2['size']:
-            return False
-        if not np.allclose(info1['spacing'], info2['spacing'], atol=tol):
-            return False
-        if not np.allclose(info1['origin'], info2['origin'], atol=tol):
-            return False
-        if not np.allclose(info1['direction'], info2['direction'], atol=tol):
-            return False
-        return True
+        self._coord_cache = {} # Avoid recomputing coord meshgrid when including spatial features
 
     def fit(self, data):
         if isinstance(data[0], np.ndarray):
@@ -360,7 +139,8 @@ class HabitatGenerator:
             'n_clusters': self.n_clusters,
             'algorithm': self.algorithm,
             'include_spatial_features': self.include_spatial_features,
-            'spatial_weight' : self.spatial_weight
+            'channel_weights' : self.channel_weights,
+            'spatial_weights' : self.spatial_weights
         }
     
     def save(self, filepath):
@@ -377,7 +157,8 @@ class HabitatGenerator:
             batch_size=state['batch_size'],
             normalize=state['normalize'],
             include_spatial_features=state.get('include_spatial_features', False),
-            spatial_weight=state.get('spatial_weight', 1.0),
+            channel_weights=state.get('channel_weights'),
+            spatial_weights=state.get('spatial_weights'),
             **state['algorithm_kwargs'],
         )
 
@@ -391,3 +172,257 @@ class HabitatGenerator:
         with open(filepath, "rb") as f:
             state = pickle.load(f)
         return self.load_from_state(cls, state)
+    
+    def _load_image_as_sitk(self, dd):
+        if 'image' not in dd:
+            raise ValueError(f'Data dict missing image key: {dd}')
+        
+        image = dd['image']
+        geometry_info = {}
+
+        if isinstance(image, np.ndarray):
+            image = sitk.GetImageFromArray(image)
+        if isinstance(image, sitk.Image):
+            geometry_info = self.extract_geometry_info(image)
+        if isinstance(image, str):
+            image = sitk.ReadImage(image)
+            geometry_info = self.extract_geometry_info(image)
+
+        mask = dd['mask'] if 'mask' in dd else self.full_mask_from_image(image)
+
+        if isinstance(mask, str):
+            if os.path.exists(mask):
+                mask = sitk.ReadImage(mask)
+            else:
+                warnings.warn(f"Mask at path {mask} not found. Defaulting to whole-image mask.")
+                mask = self.full_mask_from_image(image)
+
+        # Check if image and mask geometries match; resample mask to image geometry if not.
+        if not self._geometries_match(image, mask):
+            try:
+                mask = resample_to_target_image(mask, image, is_mask=True)
+                warnings.warn(f'Mask was resampled to image geometry (geometries did not match initially).')
+            except Exception as e:
+                raise ValueError(f'Mask could not be resampled to image space. Exception: {e}')
+  
+        return image, mask, geometry_info
+    
+    def _load_image_as_numpy(self, dd):
+        image, mask, geometry_info = self._load_image_as_sitk(dd)
+        
+        image = sitk.GetArrayFromImage(image)
+        mask = sitk.GetArrayFromImage(mask)
+  
+        return image, mask, geometry_info
+
+    def _prepare_channels(self, channels):
+        if isinstance(channels, list):
+            return {name: idx for idx, name in enumerate(channels)}
+        elif isinstance(channels, dict):
+            for k, v in channels.items():
+                if not isinstance(v, int):
+                    raise ValueError
+            return channels
+        else:
+            raise TypeError
+
+    def _select_channels(self, image_4d):
+        indices = list(self.channels.values())
+        if image_4d.shape[-1] <= max(indices):
+            raise ValueError
+        return image_4d[..., indices]
+
+    def _prepare_mask(self, mask, image_4d):
+        if mask is None:
+            return np.ones(image_4d.shape[:3], dtype=bool)
+        if mask.ndim == 4:
+            mask = mask[..., 0]
+        if mask.shape != image_4d.shape[:3]:
+            raise ValueError(f"Mask and image spatial dimensions don't match. Mask: {mask.shape}, Image: {image_4d.shape}")
+        return mask
+    
+    def _prepare_feature_vector(self, image_4d, mask, geometry_info=None):
+        if mask is None:
+            mask = np.ones(image_4d.shape[:3])
+            
+        vox = image_4d.reshape(-1, image_4d.shape[-1])
+        mask_flat = mask.reshape(-1).astype(bool)
+        vox = vox[mask_flat]
+
+        if self.include_spatial_features:
+            vox = self._append_spatial_features(
+                vox, mask_flat, image_4d.shape, geometry_info
+            )
+
+        return vox, mask_flat
+
+    def _prepare_weights(self):
+        weights = []
+
+        if self.channel_weights is None:
+            weights.extend([1.0] * len(self.channels))
+        else:
+            if len(self.channel_weights) != len(self.channels):
+                raise ValueError(
+                    f"channel_weights must match number of channels. "
+                    f"channel_weights={self.channel_weights} | channels={self.channels}"
+                )
+            weights.extend(map(float, self.channel_weights))
+
+        if self.include_spatial_features:
+            if self.spatial_weights is None:
+                warnings.warn('Spatial features included, but spatial_weights not provided. Defaulting to equal 1.0 for all')
+                spatial_weights = [1.0, 1.0, 1.0]
+            else:
+                if len(self.spatial_weights) != 3:
+                    raise ValueError("spatial_weights must have length 3")
+                spatial_weights = list(map(float, self.spatial_weights))
+
+            weights.extend(spatial_weights)
+
+        return np.array(weights, dtype=float)
+
+    def _append_spatial_features(self, vox, mask_flat, img_shape, geometry_info=None):
+        key = img_shape[:3]
+        
+        if geometry_info is not None:
+            spacing = np.array(geometry_info.get('spacing', (1.0, 1.0, 1.0)))
+            key = (img_shape[0], img_shape[1], img_shape[2], tuple(spacing))
+        else:
+            spacing = None
+
+        if key not in self._coord_cache:
+            coords = np.stack(
+                np.meshgrid(
+                    np.arange(img_shape[0]),
+                    np.arange(img_shape[1]),
+                    np.arange(img_shape[2]),
+                    indexing="ij"
+                ),
+                axis=-1
+            ).reshape(-1, 3)
+
+            if spacing is not None:
+                coords = coords * spacing
+
+            if spacing is not None:
+                norm = np.array(img_shape[:3]) * spacing
+            else:
+                norm = np.array(img_shape[:3])
+
+            coords = coords / norm
+
+            self._coord_cache[key] = coords
+        else:
+            coords = self._coord_cache[key]
+
+        coords = coords[mask_flat]
+
+        return np.concatenate([vox, coords], axis=1)
+
+    def _prepare_algorithm(self):
+        self.weights = self._prepare_weights()
+        key = self.algorithm_name.lower()
+        algo_class = self._ALGORITHM_REGISTRY[key]
+        return algo_class(
+            n_clusters=self.n_clusters,
+            mean_=self.mean_,
+            std_=self.std_,
+            batch_size=self.batch_size,
+            weights=self.weights,
+            **self.algorithm_kwargs
+        )
+
+    def _prepare_X_list(self, images, masks, geometry_infos=None):
+        X_list = []
+        for img, mask, geom in zip(images, masks, geometry_infos):
+            vox, _ = self._prepare_feature_vector(img, mask, geom)
+            if vox.size > 0:
+                X_list.append(vox)
+        return X_list
+
+    def _iter_batches(self, items):
+        for k in range(0, len(items), self.batch_size):
+            yield items[k:k + self.batch_size]
+    
+    def _compute_stats(self, data):
+        total_sum = None
+        total_sq = None
+        total_n = 0
+        for batch in self._iter_batches(data):
+            for dd in batch:
+                img, mask, _ = self._load_image_as_numpy(dd)
+                img = self._select_channels(img)
+                mask = self._prepare_mask(mask, img)
+                vox = img.reshape(-1, img.shape[-1])
+                mask_flat = mask.reshape(-1).astype(bool)
+                vox = vox[mask_flat]
+                
+                if vox.size == 0:
+                    continue
+                if total_sum is None:
+                    total_sum = vox.sum(axis=0)
+                    total_sq = (vox ** 2).sum(axis=0)
+                else:
+                    total_sum += vox.sum(axis=0)
+                    total_sq += (vox ** 2).sum(axis=0)
+                total_n += vox.shape[0]
+
+        if total_n == 0:
+            raise ValueError("No valid voxels found.")
+                
+        self.mean_ = total_sum / total_n
+        var = total_sq / total_n - self.mean_ ** 2
+        var = np.maximum(var, 0)
+        self.std_ = np.sqrt(var)
+        self.std_[self.std_ < 1e-8] = 1.0
+
+    def _geometries_match(self, img1, img2, tol=1e-6):
+        info1 = self.extract_geometry_info(img1)
+        info2 = self.extract_geometry_info(img2)
+
+        if info1['size'] != info2['size']:
+            return False
+        if not np.allclose(info1['spacing'], info2['spacing'], atol=tol):
+            return False
+        if not np.allclose(info1['origin'], info2['origin'], atol=tol):
+            return False
+        if not np.allclose(info1['direction'], info2['direction'], atol=tol):
+            return False
+        return True
+    
+    @staticmethod
+    def extract_geometry_info(img):
+        return {
+            'origin' : img.GetOrigin(),
+            'spacing' : img.GetSpacing(),
+            'direction' : img.GetDirection(),
+            'size' : img.GetSize()
+        }
+
+    @staticmethod
+    def set_geometry_info(img, geometry_info):
+        dim = img.GetDimension()
+
+        origin = geometry_info.get('origin', (0.0,) * dim)
+        spacing = geometry_info.get('spacing', (1.0,) * dim)
+
+        default_direction = tuple(
+            1.0 if i == j else 0.0
+            for i in range(dim)
+            for j in range(dim)
+        )
+
+        direction = geometry_info.get('direction', default_direction)
+
+        img.SetOrigin(origin)
+        img.SetSpacing(spacing)
+        img.SetDirection(direction)
+        return img
+    
+    @staticmethod
+    def full_mask_from_image(image):
+        mask = sitk.Image(image.GetSize(), sitk.sitkUInt8)
+        mask = sitk.Add(mask, 1)
+        mask.CopyInformation(image)
+        return mask

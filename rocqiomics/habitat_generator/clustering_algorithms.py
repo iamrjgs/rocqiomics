@@ -29,6 +29,14 @@ class GMMClustering(VoxelClusteringAlgorithm):
             **self.kwargs
         )
 
+    def fit_partial(self):
+        raise NotImplementedError(
+            "GMM does not implement fit_partial. "
+            "It must be trained on the full dataset at once, not in batches. "
+            "Either increase batch size to cover the whole dataset (if your memory can take it) "
+            "or use a smaller dataset."
+        )
+
     def predict_proba(self, image_4d, mask=None):
         voxels, shape, mask_flat = self._prepare_single(image_4d, mask=mask)
         output = np.full(voxels.shape[0], np.nan)
@@ -39,7 +47,6 @@ class GMMClustering(VoxelClusteringAlgorithm):
         output[mask_flat] = labels
         return output.reshape(shape)
     
-
 class BirchClustering(VoxelClusteringAlgorithm):
     def __init__(self, n_clusters, mean_=None, std_=None, batch_size=100, **kwargs):
         super().__init__(n_clusters, mean_=mean_, std_=std_)

@@ -51,6 +51,7 @@ class Rocqiomics:
                 save_results: bool=True,
                 save_dirpath: Optional[str]=None,
                 save_suffix: str="",
+                save_extension: str="xlsx",
                 save_results_to_existing_file: bool=False,
                 save_by_columns: Optional[List[str]]=None,
                 ):   
@@ -99,6 +100,7 @@ class Rocqiomics:
             save_results (bool): Whether to save extracted results.
             save_dirpath (Optional[str]): Directory path for saving outputs.
             save_suffix (str): Suffix for saved filenames. For example, setting as 'test' appends '_test' to each saved file.
+            save_extension (str): Extension indicating type of savefile. Defaults to Excel file.
             save_results_to_existing_file (bool): Whether to append results to an existing file.
             save_by_columns (Optional[List[str]]): List of metadata columns by which to separate feature sets for saving as Excel file.
             For example, setting as ['modality', 'timepoint'] will save a different feature set for each modality and timepoint
@@ -124,6 +126,7 @@ class Rocqiomics:
         self.save_results: bool = save_results
         self.save_by_columns: List[str] = save_by_columns
         self.save_suffix: str = save_suffix
+        self.save_extension: str = save_extension
         self.save_dirpath = save_dirpath or os.path.join(os.getcwd(), "Results")
         self.save_results_to_existing_file: bool = save_results_to_existing_file
         
@@ -276,7 +279,7 @@ class Rocqiomics:
 
     def save_or_update_feature_set(self, df, filepath):
         if self.save_results_to_existing_file and os.path.exists(filepath):
-            existing_df = pd.read_excel(filepath)
+            existing_df = self.read_tabular_dataset(filepath)
 
             if self.id_col in existing_df.columns:
                 existing_df = existing_df.set_index(self.id_col)
@@ -284,11 +287,11 @@ class Rocqiomics:
             updated_df = pd.concat([existing_df, df], axis=0)
             updated_df = updated_df.sort_index()
 
-            updated_df.to_excel(filepath)
+            self.save_tabular_dataset(updated_df, filepath)
 
             self.logger.info(f'Results added to existing feature set {filepath}')
         else:
-            df.to_excel(filepath)
+            self.save_tabular_dataset(df, filepath)
             self.logger.info(f'Results saved to {filepath}')
 
     def _run_case(self, idx, case):
@@ -440,7 +443,7 @@ class Rocqiomics:
                 save_filename_pieces.insert(0, p)
         
         # Join filename pieces by underscores to create name after filtering empty strings
-        save_filename = '_'.join(filter(None, save_filename_pieces)) + '.xlsx'
+        save_filename = '_'.join(filter(None, save_filename_pieces)) + '.' + self.save_extension
         
         save_filepath = os.path.join(self.save_dirpath, save_filename)
         return save_filepath
@@ -570,6 +573,43 @@ class Rocqiomics:
         run_time = time.perf_counter() - start_time
         self.logger.info(f'Case {idx}/{last_idx} done in {run_time:.2f}s\t{log_txt}')
         self.logger.debug(case)
+
+    @staticmethod
+    def read_tabular_dataset(filepath, **kwargs):
+        if not isinstance(filepath, str):
+            raise TypeError("filepath must be a string")
+        if not os.path.exists(filepath):
+            raise FileNotFoundError(f"File not found: {filepath}")
+
+        file_ext = os.path.splitext(filepath)[1].lower()
+
+        if file_ext == ".csv":
+            return pd.read_csv(filepath, **kwargs)
+        elif file_ext in [".xls", ".xlsx"]:
+            return pd.read_excel(filepath, **kwargs)
+        else:
+            raise ValueError(
+                f"Unsupported file type: {file_ext}. "
+                "Only CSV and Excel files are supported."
+            )
+    
+    @staticmethod
+    def save_tabular_dataset(df, filepath, **kwargs):
+        ext = os.path.splitext(filepath)[1].lower()
+
+        if ext in [".xlsx", ".xls"]:
+            try:
+                df.to_excel(filepath, index=False, **kwargs)
+                return filepath
+            except Exception:
+                csv_path = os.path.splitext(filepath)[0] + ".csv"
+                df.to_csv(csv_path, index=False, **kwargs)
+                return csv_path
+        else:
+            if ext != ".csv":
+                filepath = os.path.splitext(filepath)[0] + ".csv"
+            df.to_csv(filepath, index=False, **kwargs)
+            return filepath
 
     def __len__(self):
         return len(self.dataset)

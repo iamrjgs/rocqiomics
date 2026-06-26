@@ -40,7 +40,7 @@ class RadiomicsHabitatGenerator:
         self.engine = engine
         self.save_vector_dirpath = save_vector_dirpath
         self.save_fmaps_dirpath = save_fmaps_dirpath
-        self.average_augmentations = average_augmentations
+        self.average_augmentations = average_augmentations and self.augmentations
         self.include_spatial_features = include_spatial_features
         self.spatial_weight = spatial_weight
 
@@ -128,7 +128,7 @@ class RadiomicsHabitatGenerator:
         if self.save_vector_dirpath is None:
             raise ValueError("save_vector_dirpath must be set")
         
-        meta_to_use = {k:str(v) for k,v in metadata.items() if 'path' not in k and 'diagnostics' not in k and 'augmentation' not in k}
+        meta_to_use = {k:str(v) for k,v in metadata.items() if 'path' not in k and 'diagnostics' not in k and 'augmentation' not in k and self.id_col not in k}
         filename_parts = [l for l in list(meta_to_use.values()) if len(l) > 0][0:6] # Limit to 6 metadata fields
 
         if 'augmentation' in metadata and not self.average_augmentations:
