@@ -1,6 +1,8 @@
 import os
+import logging
 import pickle
 import warnings
+import sys
 
 import numpy as np
 import SimpleITK as sitk
@@ -30,6 +32,7 @@ class HabitatGenerator:
                  include_spatial_features=False,
                  channel_weights=None,
                  spatial_weights=None,
+                 logging_level=None,
                  **algorithm_kwargs):
         self.channels = self._prepare_channels(channels)
         self.batch_size = batch_size
@@ -39,12 +42,19 @@ class HabitatGenerator:
         self.algorithm_name = algorithm
         self.algorithm_kwargs = algorithm_kwargs
         self.n_clusters = n_clusters
-        self.algorithm = None # Prepared later
+
+        self.logging_level = logging_level or logging.INFO
+        self.logger = self._set_logger()
+
         self.include_spatial_features = include_spatial_features
         self.channel_weights = channel_weights
         self.spatial_weights = spatial_weights
         self.weights = None # Prepared later
+
+        self.algorithm = None # Prepared later
         self.fitted = False
+
+        
         self._coord_cache = {} # Avoid recomputing coord meshgrid when including spatial features
 
     def fit(self, data):
@@ -59,6 +69,8 @@ class HabitatGenerator:
 
         self.algorithm = self._prepare_algorithm() 
         self.fitted = False
+
+        self.logger.info('Starting fit.')
 
         for i, batch in enumerate(self._iter_batches(data)):
             images = []
@@ -84,9 +96,10 @@ class HabitatGenerator:
             else:
                 self.algorithm.partial_fit(X)
 
-        
         if not self.fitted:
             raise ValueError("No valid data for fitting.")
+        
+        self.logger.info('Fit done.')
 
         return self
     
@@ -194,14 +207,25 @@ class HabitatGenerator:
             if os.path.exists(mask):
                 mask = sitk.ReadImage(mask)
             else:
-                warnings.warn(f"Mask at path {mask} not found. Defaulting to whole-image mask.")
+                self.logger.warn(f"Mask at path {mask} not found. Defaulting to whole-image mask.")
                 mask = self.full_mask_from_image(image)
 
         # Check if image and mask geometries match; resample mask to image geometry if not.
         if not self._geometries_match(image, mask):
             try:
+                g1 = self.extract_geometry_info(mask)
                 mask = resample_to_target_image(mask, image, is_mask=True)
-                warnings.warn(f'Mask was resampled to image geometry (geometries did not match initially).')
+                g2 = self.extract_geometry_info(mask)
+
+                sz1 = g1['size']
+                sz2 = g2['size']
+                sp1 = tuple(round(x, 3) for x in g1['spacing'])
+                sp2 = tuple(round(x, 3) for x in g2['spacing'])
+
+                self.logger.info(f'Mask was resampled to image geometry. '
+                                 f'Initial size: {sz1} | New size: {sz2}. '
+                                 f'Initial spacing: {sp1} | New spacing: {sp2}. '
+                                 )
             except Exception as e:
                 raise ValueError(f'Mask could not be resampled to image space. Exception: {e}')
   
@@ -238,7 +262,8 @@ class HabitatGenerator:
         if mask.ndim == 4:
             mask = mask[..., 0]
         if mask.shape != image_4d.shape[:3]:
-            raise ValueError(f"Mask and image spatial dimensions don't match. Mask: {mask.shape}, Image: {image_4d.shape}")
+            raise ValueError(f"Mask and image spatial dimensions don't match. " 
+                             f"Mask: {mask.shape}, Image: {image_4d.shape}")
         return mask
     
     def _prepare_feature_vector(self, image_4d, mask, geometry_info=None):
@@ -271,7 +296,7 @@ class HabitatGenerator:
 
         if self.include_spatial_features:
             if self.spatial_weights is None:
-                warnings.warn('Spatial features included, but spatial_weights not provided. Defaulting to equal 1.0 for all')
+                self.logger.warn('Spatial features included, but spatial_weights not provided. Defaulting to equal 1.0 for all')
                 spatial_weights = [1.0, 1.0, 1.0]
             else:
                 if len(self.spatial_weights) != 3:
@@ -346,6 +371,8 @@ class HabitatGenerator:
             yield items[k:k + self.batch_size]
     
     def _compute_stats(self, data):
+        self.logger.info('Computing dataset mean and std.')
+
         total_sum = None
         total_sq = None
         total_n = 0
@@ -390,6 +417,22 @@ class HabitatGenerator:
         if not np.allclose(info1['direction'], info2['direction'], atol=tol):
             return False
         return True
+    
+    def _set_logger(self):
+        name = str(__package__)
+        name = name.split('.')[-1] if '.' in name else name
+
+        logger_obj = logging.getLogger(name)
+        logger_obj.handlers.clear()
+        logger_obj.setLevel(self.logging_level)
+        logger_obj.propagate = False
+        console_handler = logging.StreamHandler(stream=sys.stdout)
+        console_handler.setLevel(self.logging_level)
+        formatter = logging.Formatter("%(name)s %(levelname)s:\t %(message)s")
+        console_handler.setFormatter(formatter)
+        logger_obj.addHandler(console_handler)
+        logging.getLogger("py.warnings").setLevel(logging.ERROR)
+        return logger_obj
     
     @staticmethod
     def extract_geometry_info(img):

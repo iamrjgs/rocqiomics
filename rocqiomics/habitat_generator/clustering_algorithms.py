@@ -2,7 +2,7 @@ import numpy as np
 from .clustering_algorithm_base import VoxelClusteringAlgorithm
 
 class KMeansClustering(VoxelClusteringAlgorithm):
-    def __init__(self, n_clusters, mean_=None, std_=None, batch_size=100, **kwargs):
+    def __init__(self, n_clusters, mean_=None, std_=None, batch_size=100, weights=None, **kwargs):
         super().__init__(n_clusters, mean_=mean_, std_=std_)
         self.batch_size = batch_size
         self.kwargs = kwargs
@@ -16,7 +16,7 @@ class KMeansClustering(VoxelClusteringAlgorithm):
         )
 
 class GMMClustering(VoxelClusteringAlgorithm):
-    def __init__(self, n_clusters, mean_=None, std_=None, batch_size=100, covariance_type='full', **kwargs): 
+    def __init__(self, n_clusters, mean_=None, std_=None, batch_size=100, weights=None, covariance_type='full', **kwargs): 
         super().__init__(n_clusters, mean_=mean_, std_=std_)
         self.covariance_type = covariance_type
         self.kwargs = kwargs
@@ -48,7 +48,7 @@ class GMMClustering(VoxelClusteringAlgorithm):
         return output.reshape(shape)
     
 class BirchClustering(VoxelClusteringAlgorithm):
-    def __init__(self, n_clusters, mean_=None, std_=None, batch_size=100, **kwargs):
+    def __init__(self, n_clusters, mean_=None, std_=None, batch_size=100, weights=None, **kwargs):
         super().__init__(n_clusters, mean_=mean_, std_=std_)
         self.kwargs = kwargs
 

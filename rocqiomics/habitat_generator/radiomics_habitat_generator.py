@@ -26,7 +26,8 @@ class RadiomicsHabitatGenerator:
                  save_vector_dirpath=None,
                  average_augmentations=False,
                  include_spatial_features=False,
-                 spatial_weight=1.0
+                 feature_weights=None,
+                 spatial_weights=None
                  ):
         self.preprocessing = preprocessing
         self.augmentations = augmentations if augmentations is not None else []
@@ -42,7 +43,8 @@ class RadiomicsHabitatGenerator:
         self.save_fmaps_dirpath = save_fmaps_dirpath
         self.average_augmentations = average_augmentations and self.augmentations
         self.include_spatial_features = include_spatial_features
-        self.spatial_weight = spatial_weight
+        self.feature_weights = feature_weights
+        self.spatial_weights = spatial_weights
 
         if voxel_based_settings is None:
             self.voxel_based_settings = {
@@ -87,7 +89,8 @@ class RadiomicsHabitatGenerator:
             algorithm=self.algorithm_name,
             n_clusters=self.n_clusters,
             include_spatial_features=self.include_spatial_features,
-            spatial_weight=self.spatial_weight
+            channel_weights=self.feature_weights,
+            spatial_weights=self.spatial_weights
         )
     
     def _check_or_set_channels(self, map_dict):
@@ -128,7 +131,7 @@ class RadiomicsHabitatGenerator:
         if self.save_vector_dirpath is None:
             raise ValueError("save_vector_dirpath must be set")
         
-        meta_to_use = {k:str(v) for k,v in metadata.items() if 'path' not in k and 'diagnostics' not in k and 'augmentation' not in k and self.id_col not in k}
+        meta_to_use = {k:str(v) for k,v in metadata.items() if 'path' not in k and 'diagnostics' not in k and 'augmentation' not in k and self.map_extractor.id_col not in k}
         filename_parts = [l for l in list(meta_to_use.values()) if len(l) > 0][0:6] # Limit to 6 metadata fields
 
         if 'augmentation' in metadata and not self.average_augmentations:
