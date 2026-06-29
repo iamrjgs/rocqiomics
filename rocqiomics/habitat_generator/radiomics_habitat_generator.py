@@ -88,6 +88,7 @@ class RadiomicsHabitatGenerator:
             channels=self.channels,
             algorithm=self.algorithm_name,
             n_clusters=self.n_clusters,
+            batch_size=self.batch_size,
             include_spatial_features=self.include_spatial_features,
             channel_weights=self.feature_weights,
             spatial_weights=self.spatial_weights
