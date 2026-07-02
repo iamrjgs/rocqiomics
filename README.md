@@ -1,43 +1,22 @@
 # rocqiomics
 
-**A deep-learning-inspired radiomics framework tailored to habitat imaging.**
+**A Deep Learning-inspired Radiomics Framework Tailored to Voxel-wise Habitat Imaging.**
 
-**`rocqiomics`** provides a MONAI-inspired interface to validated radiomics engines (e.g. Pyradiomics), and features tooling designed with voxel-wise modeling workflows in mind.
+**`rocqiomics`** provides a MONAI-inspired interface to IBSI-compliant radiomics engines, and features tooling designed with voxel-wise modeling workflows in mind.
 
 ---
 
 ## Key Features
 
-- Radiomics pipeline with deep-learning–inspired **data dictionary API**
-- Classes for **Habitat Radiomics**
-- Native support for **MONAI transforms** for preprocessing and augmentation [1]
-- Multi-engine backend (**PyRadiomics** [2], **fastrad** [3])
-
-
-## Overview
-
-**`rocqiomics`** provides:
-
-### 🔹 Radiomics from validated engines
-- Supports **PyRadiomics** and **fastrad**
-- Maintains IBSI-compliant feature extraction
-- Adds a clean, modern Python interface
-
-### 🔹 MONAI-native pipelines
-- Direct support for Monai dictionary transforms (e.g. ScaleIntensityd, Spacingd)
-- Enables complex preprocessing and augmentation workflows
-- Simplifies perturbation-based radiomics [4]
-
-### 🔹 Habitat Radiomics support
-- Designed for voxel-wise feature extraction
-- Enables clustering into spatially distinct **image habitats** [5]
+- Radiomics pipeline with modern, deep-learning–inspired **data dictionary API**
+- Classes for **Habitat Radiomics** - voxel-wise clustering based on radiomics feature maps [2]
+- Native support for **MONAI dictionary transforms** for preprocessing and augmentation [1]
+- Validated radiomics engine **PyRadiomics** [3] or its GPU-based alternative **fastrad** [4]
 ---
 
 ## Core Components
 
-The library is built around three main classes:
-
----
+The library has three main classes:
 
 ### 🔹 `Rocqiomics`
 
@@ -56,6 +35,53 @@ A flexible wrapper around radiomics engines that:
 - Automated dataset handling
 - Feature map extraction (`voxel_based=True`)
 - Flexible saving and metadata handling
+
+#### Usage
+
+```
+import rocqiomics as rq
+from rocqiomics.transforms import N4ITKBiasFieldCorrection
+
+from monai.transforms import (
+    Compose,
+    NormalizeIntensityd,
+    Spacingd,
+    Rotated
+)
+
+data_dicts = [
+    {
+        'case_id' : 'id1',
+        'image' : # Path to image 1,
+        'mask' : # Path to mask 1,
+        'metadata' : {}
+    },
+    {
+        'case_id' : 'id2',
+        'image' : # Path to image 2,
+        'mask' : # Path to mask 2,
+        'metadata' : {}
+    },
+]
+
+extractor = rq.Rocqiomics(
+    preprocessing=Compose([
+        N4ITKBiasFieldCorrection(image_key='image', mask_key='mask', max_iterations=20),
+        NormalizeIntensityd(keys=['image']),
+        ScaleIntensityd(keys=['image'], factor=99.0, minv=None, maxv=None),
+        Spacingd(keys=['image', 'mask'], pixdim=(1.0, 1.0, 1.0), mode=[3, 'nearest']),
+
+    ]),
+    augmentations=[
+        Rotated(keys=['image', 'mask'], angle=0.1, mode=['bilinear', 'nearest]),
+    ],
+    bin_width=10.0,
+    voxel_based=False,
+    engine='pyradiomics'
+)
+
+results = extractor.run_pipeline(data_dicts)
+```
 
 ---
 
@@ -110,10 +136,11 @@ pip install -e .
 
 [1] The MONAI Consortium. (2020). Project MONAI. Zenodo. https://doi.org/10.5281/zenodo.4323059
 
-[2] van Griethuysen, J. J. M., Fedorov, A., Parmar, C., Hosny, A., Aucoin, N., Narayan, V., Beets-Tan, R. G. H., Fillion-Robin, J. C., Pieper, S., Aerts, H. J. W. L. (2017). Computational Radiomics System to Decode the Radiographic Phenotype. Cancer Research, 77(21), e104–e107. https://doi.org/10.1158/0008-5472.CAN-17-0339 | https://github.com/AIM-Harvard/pyradiomics/tree/master
+[2] Prior O, Macarro C, Navarro V, Monreal C, Ligero M, Garcia-Ruiz A, Serna G, Simonetti S, Braña I, Vieito M, Escobar M, Capdevila J, Byrne AT, Dienstmann R, Toledo R, Nuciforo P, Garralda E, Grussu F, Bernatowicz K, Perez-Lopez R. Identification of precise 3D CT radiomics for habitat computation by machine learning in cancer. Radiology: Artificial Intelligence. 2024;6(2):e230118. https://doi.org/10.1148/ryai.230118
 
-[3] Sánchez-Femat, Erika and Celaya-Padilla, José-María and Galvan-Tejada, Carlos Eric, fastrad: Complete, IBSI-Validated GPU Acceleration of the Full PyRadiomics Feature Set. Available at SSRN: https://ssrn.com/abstract=6436486 or http://dx.doi.org/10.2139/ssrn.6436486 | https://github.com/helloerikaaa/fastrad
+[3] van Griethuysen, J. J. M., Fedorov, A., Parmar, C., Hosny, A., Aucoin, N., Narayan, V., Beets-Tan, R. G. H., Fillion-Robin, J. C., Pieper, S., Aerts, H. J. W. L. (2017). Computational Radiomics System to Decode the Radiographic Phenotype. Cancer Research, 77(21), e104–e107. https://doi.org/10.1158/0008-5472.CAN-17-0339 | https://github.com/AIM-Harvard/pyradiomics/tree/master
 
-[4] Zwanenburg, A., Leger, S., Agolli, L. et al. Assessing robustness of radiomic features by image perturbation. Sci Rep 9, 614 (2019). https://doi.org/10.1038/s41598-018-36938-4
+[4] Sánchez-Femat, Erika and Celaya-Padilla, José-María and Galvan-Tejada, Carlos Eric, fastrad: Complete, IBSI-Validated GPU Acceleration of the Full PyRadiomics Feature Set. Available at SSRN: https://ssrn.com/abstract=6436486 or http://dx.doi.org/10.2139/ssrn.6436486 | https://github.com/helloerikaaa/fastrad
 
-[5] Prior O, Macarro C, Navarro V, Monreal C, Ligero M, Garcia-Ruiz A, Serna G, Simonetti S, Braña I, Vieito M, Escobar M, Capdevila J, Byrne AT, Dienstmann R, Toledo R, Nuciforo P, Garralda E, Grussu F, Bernatowicz K, Perez-Lopez R. Identification of precise 3D CT radiomics for habitat computation by machine learning in cancer. Radiology: Artificial Intelligence. 2024;6(2):e230118. https://doi.org/10.1148/ryai.230118
+[5] Zwanenburg, A., Leger, S., Agolli, L. et al. Assessing robustness of radiomic features by image perturbation. Sci Rep 9, 614 (2019). https://doi.org/10.1038/s41598-018-36938-4
+
