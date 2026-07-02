@@ -7,7 +7,6 @@ from typing import List, Dict, Optional
 import traceback
 import sys
 
-import numpy as np
 import pandas as pd
 import SimpleITK as sitk
 
@@ -180,7 +179,9 @@ class Rocqiomics:
         
         case_ids (Optional[List[str]]): List of case_ids you want to filter by. Leave as None if extracting from all cases.
         """
+
         self._initialize_dataset(data_dicts, case_ids=case_ids)
+
         for idx, case in enumerate(self.dataset):
             try:
                 results_dict = self._run_case(idx, case)
@@ -204,7 +205,9 @@ class Rocqiomics:
         
         case_ids (Optional[List[str]]): List of case_ids you want to filter by. Leave as None if extracting from all cases.
         """
+
         self._initialize_dataset(data_dicts, case_ids=case_ids)
+
         for idx, case in enumerate(self.dataset):
             try:
                 yield self._run_case(idx, case)
@@ -488,7 +491,6 @@ class Rocqiomics:
         tests = get_input_validation_tests()
 
         for case in data_dicts:
-
             for test_name, test_func in tests.items():
                 test_result = test_func(
                     case,
