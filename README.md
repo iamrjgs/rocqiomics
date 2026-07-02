@@ -177,6 +177,9 @@ Clusters voxels based on 4D feature vectors across channels, which could be:
 #### Usage
 
 ```
+import rocqiomics as rq
+import SimpleITK as sitk
+
 # Load channel images
 adc_img = sitk.ReadImage(../path/to/ADCmap.nrrd)
 t1map_img = sitk.ReadImage(../path/to/T1map.nrrd)
@@ -200,12 +203,12 @@ habitat_generator = HabitatGenerator(
     algorithm='gmm'
 )
 
-# Fit the habitat generator using data and return the predicted habitats
-prediction = gmm.fit_predict(data=data_dicts)
+"""
+Fit the habitat generator using data and return the predicted habitats
+Output is a list of numpy arrays (or, optionally, sitk images) containing habitat predictions
+"""
+prediction = gmm.fit_predict(data=data_dicts, return_as_sitk_image=False)
 
-for r in res:
-    fig, ax = plt.subplots(1,, figsize=(5,5))
-    ax.imshow(r[2,:,:], cmap='turbo')
 ```
 
 

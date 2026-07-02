@@ -134,9 +134,9 @@ class HabitatGenerator:
                 
         return outputs
 
-    def fit_predict(self, data):
+    def fit_predict(self, data, return_as_sitk_image=False):
         self.fit(data)
-        return self.predict(data)
+        return self.predict(data, return_as_sitk_image=return_as_sitk_image)
     
     def prepare_state_for_saving(self):
         if self.algorithm is None:
@@ -209,6 +209,8 @@ class HabitatGenerator:
             else:
                 self.logger.warn(f"Mask at path {mask} not found. Defaulting to whole-image mask.")
                 mask = self.full_mask_from_image(image)
+        elif isinstance(mask, np.ndarray):
+            mask = sitk.GetImageFromArray(mask)
 
         # Check if image and mask geometries match; resample mask to image geometry if not.
         if not self._geometries_match(image, mask):
@@ -436,6 +438,8 @@ class HabitatGenerator:
     
     @staticmethod
     def extract_geometry_info(img):
+        if isinstance(img, np.ndarray):
+            img = sitk.GetImageFromArray(img)
         return {
             'origin' : img.GetOrigin(),
             'spacing' : img.GetSpacing(),
