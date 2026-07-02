@@ -1,6 +1,6 @@
 # rocqiomics
 
-![alt text](https://github.com/iamrjgs/rocqiomics/assets/habitat_map_example.png)
+![alt text](tps://raw.githubusercontent.com/iamrjgs/rocqiomics/assets/habitat_map_example.png)
 
 **A Deep Learning-inspired Radiomics Framework Tailored For Habitat Imaging.**
 
