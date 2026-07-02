@@ -1,6 +1,6 @@
 # rocqiomics
 
-![Habitat Map](assets/habitats_map_example.png)
+![Habitat Map](assets/habitats_maps_example.png)
 
 **A Deep Learning-Inspired Radiomics Framework Tailored To Habitat Imaging.**
 
