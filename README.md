@@ -13,7 +13,7 @@ Habitat Radiomics extracts voxel-wise feature maps to cluster voxels into severa
 - Radiomics pipeline with modern, deep-learning–inspired **data dictionary API**
 - Classes for **Habitat Radiomics** - voxel-wise clustering based on multi-channel feature maps 
 - Native support for **MONAI dictionary transforms** for preprocessing and augmentation [2]
-- Uses validated radiomics engine **PyRadiomics** [3] or its GPU-based alternative **fastrad** [4]
+- Uses validated radiomics engine **PyRadiomics** [3] or its PyTorch-based, GPU-native equivalent **fastrad** [4]
 - Provides seamless portability of existing Pyradiomics workflows with a user-friendly interface
 ---
 
@@ -47,16 +47,16 @@ from monai.transforms import (
 data_dicts = [
     {
         'case_id' : 'id_1',
-        'image' : # ../path/to/image_1,
-        'mask' : # ../path/to/mask_1,
+        'image' : '../path/to/image_1',
+        'mask' : '../path/to/mask_1',
         'metadata' : {
             'modality' : 'CT'
         }
     },
     {
         'case_id' : 'id_2',
-        'image' : # ../path/to/image_2,
-        'mask' : # ../path/to/mask_2,
+        'image' : '../path/to/image_2',
+        'mask' : '../path/to/mask_2',
         'metadata' : {
             'modality' : 'CT'
         }
@@ -117,16 +117,16 @@ from monai.transforms import (
 data_dicts = [
     {
         'case_id' : 'id_1',
-        'image' : # ../path/to/image_1,
-        'mask' : # ../path/to/mask_1,
+        'image' : '../path/to/image_1',
+        'mask' : '../path/to/mask_1',
         'metadata' : {
             'modality' : 'CT'
         }
     },
     {
         'case_id' : 'id_2',
-        'image' : # ../path/to/image_2,
-        'mask' : # ../path/to/mask_2,
+        'image' : '../path/to/image_2',
+        'mask' : '../path/to/mask_2',
         'metadata' : {
             'modality' : 'CT'
         }
@@ -153,6 +153,7 @@ radhab = rq.RadiomicsHabitatGenerator(
     save_vector_dirpath=../path/for/temporary/4d_vectors_storage/before/clustering, # required
 )
 
+# Fit the habitat generator using data and return the predicted habitats
 predictions, result_ddicts = radhab.fit_predict(data_dicts)
 ```
 
@@ -176,13 +177,15 @@ Clusters voxels based on 4D feature vectors across channels, which could be:
 #### Usage
 
 ```
-
+# Load channel images
 adc_img = sitk.ReadImage(../path/to/ADCmap.nrrd)
 t1map_img = sitk.ReadImage(../path/to/T1map.nrrd)
 mask_img = sitk.ReadImage(../path/to/mask.seg.nrrd) # Optional
 
-vector_img = sitk.Compose([adc_img, timap_img])
+# Stack channels into a single one vector image
+vector_img = sitk.Compose([adc_img, timap_img], isVector=True)
 
+# Wrap vector image in our data_dict format
 data_dicts = [
     {
         'image' : vector_img_1,
@@ -197,6 +200,7 @@ habitat_generator = HabitatGenerator(
     algorithm='gmm'
 )
 
+# Fit the habitat generator using data and return the predicted habitats
 prediction = gmm.fit_predict(data=data_dicts)
 
 for r in res:
