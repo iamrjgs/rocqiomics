@@ -189,7 +189,7 @@ t1map_img = sitk.ReadImage(../path/to/T1map.nrrd)
 mask_img = sitk.ReadImage(../path/to/mask.seg.nrrd) # Optional
 
 # Stack channels into a single one vector image
-vector_img = sitk.Compose([adc_img, timap_img], isVector=True)
+vector_img = sitk.Compose([adc_img, timap_img])
 
 # Wrap vector image in our data_dict format
 data_dicts = [
