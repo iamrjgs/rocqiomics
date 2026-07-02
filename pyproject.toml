@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "rocqiomics"
 version = "2.0.0"
-description = "Deep learning and augmentation-friendly radiomics library."
+description = "Deep learning-inspired radiomics library tailored to habitat imaging."
 readme = "README.md"
 requires-python = ">=3.8"
 authors = [

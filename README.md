@@ -2,7 +2,7 @@
 
 ![Habitat Map](assets/habitat_example.png)
 
-**A Deep Learning-inspired Radiomics Framework Tailored For Habitat Imaging.**
+**A Deep Learning-Inspired Radiomics Framework Tailored To Habitat Imaging.**
 
 **`rocqiomics`** provides a MONAI-inspired interface to IBSI-compliant radiomics engines, and features tooling designed with voxel-wise "habitat radiomics" workflows in mind.
 
@@ -14,19 +14,20 @@ Habitat Radiomics extracts voxel-wise feature maps to cluster voxels into severa
 - Classes for **Habitat Radiomics** - voxel-wise clustering based on multi-channel feature maps 
 - Native support for **MONAI dictionary transforms** for preprocessing and augmentation [2]
 - Uses validated radiomics engine **PyRadiomics** [3] or its GPU-based alternative **fastrad** [4]
+- Provides seamless portability of existing Pyradiomics workflows with a user-friendly interface
 ---
 
 ## Core Components
 
 The library has three main classes.
 
-### 🔹 `Rocqiomics` - Primary feature extraction interface
+### 🔹 `Rocqiomics` | Primary Feature Extraction Interface
 
-- Handles image loading, preprocessing, and augmentation with Monai Transforms
-- Supports both **standard numerical features** and **voxel-wise feature maps**
+- Handles image **loading, preprocessing, and augmentation** with `monai.Transforms`
+- Supports both standard **numerical features** and **voxel-wise feature maps**
 - Performs input validation and robust extraction
-- Optionally handles flexible results saving and metadata handling
-- Allows seamless portability of existing Pyradiomics workflows with a user-friendly interface
+- Handles flexible results saving and metadata handling
+- Provides **seamless portability** of existing Pyradiomics workflows with a user-friendly interface
 
 
 #### Usage
@@ -62,7 +63,7 @@ data_dicts = [
     },
 ]
 
-### Define extractor object with engine and `Monai.transform` preprocessing and augmentation steps ###
+### Define extractor object with engine and Monai.transform preprocessing and augmentation ###
 extractor = rq.Rocqiomics(
     preprocessing=Compose([
         N4ITKBiasFieldCorrection(image_key='image', mask_key='mask', max_iterations=20),
@@ -80,25 +81,24 @@ extractor = rq.Rocqiomics(
 )
 
 """
-Simply run on your data dicts. Output is:
+Run on your data dicts. Output is:
  - Pandas DataFrame of features (voxel_based=False)
  - Dictionary of feature map SimpleITK images (voxel_based=True)
 """
 results = extractor.run_pipeline(data_dicts)
 ```
 
-### 🔹 `RadiomicsHabitatGenerator` - **End-to-end habitat radiomics pipeline**
+### 🔹 `RadiomicsHabitatGenerator` | **End-to-End Habitat Radiomics Pipeline**
+
+- Automated feature map extraction + voxel-wise clustering
+- Generates maps dynamically for memory efficiency
+- Augmentation-aware pipeline
+- Supports any clustering algorithm implemented for HabitatGenerator
 
 Combines:
 
 - `Rocqiomics` → voxel-wise feature extraction  
 - `HabitatGenerator` → voxel clustering  
-
-#### Key features
-- Automated feature map extraction + voxel-wise clustering
-- Generates maps dynamically for memory efficiency
-- Augmentation-aware pipeline
-- Can use clustering algorithm implemented for HabitatGenerator
 
 #### Usage
 
@@ -159,9 +159,9 @@ predictions, result_ddicts = radhab.fit_predict(data_dicts)
 
 ---
 
-### 🔹 `HabitatGenerator` - **Voxel clustering engine for multi-channel imaging**
+### 🔹 `HabitatGenerator` | **Voxel Clustering Engine for Multi-Channel Imaging**
 
-Clusters voxels based on 4D feature vectors across channels:
+Clusters voxels based on 4D feature vectors across channels, which could be:
 
 - Radiomics feature maps  
 - Multiparametric MRI images 
@@ -172,10 +172,6 @@ Clusters voxels based on 4D feature vectors across channels:
 - Gaussian Mixture Models (GMM)
 - Birch clustering
 
-#### Key features
-- Channel-aware clustering
-- Optional feature normalization
-- Batch-wise processing for large 3D volumes
 
 #### Usage
 
