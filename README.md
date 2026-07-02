@@ -153,7 +153,10 @@ radhab = rq.RadiomicsHabitatGenerator(
     save_vector_dirpath=../path/for/temporary/4d_vectors_storage/before/clustering, # required
 )
 
-# Fit the habitat generator using data and return the predicted habitats
+"""
+Fit the habitat generator using data and return the predicted habitats
+Output is a list of numpy arrays (or, optionally, sitk images) containing habitat predictions
+"""
 predictions, result_ddicts = radhab.fit_predict(data_dicts)
 ```
 
@@ -207,7 +210,7 @@ habitat_generator = HabitatGenerator(
 Fit the habitat generator using data and return the predicted habitats
 Output is a list of numpy arrays (or, optionally, sitk images) containing habitat predictions
 """
-prediction = gmm.fit_predict(data=data_dicts, return_as_sitk_image=False)
+predictions = gmm.fit_predict(data=data_dicts, return_as_sitk_image=False)
 
 ```
 
