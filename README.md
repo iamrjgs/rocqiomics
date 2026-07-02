@@ -1,20 +1,18 @@
 # rocqiomics
 
-**A Monai-inspired radiomics framework tailored to habitat imaging.**
+**A deep-learning-inspired radiomics framework tailored to habitat imaging.**
 
-**`rocqiomics`** wraps validated radiomics engines in a flexible, MONAI-inspired interface and features tooling designed with augmentation, perturbation analysis, and voxel-wise modeling workflows in mind.
-
----
-
-## ⚡ Key Features
-
-- ✅ Radiomics pipeline with deep-learning–inspired **data dictionary API**
-- ✅ Native **MONAI transform** [1] support
-- ✅ **Voxel-wise** feature extraction
-- ✅ Built for **Habitat Radiomics**
-- ✅ Multi-engine backend (**PyRadiomics** [2], **fastrad** [3])
+**`rocqiomics`** provides a MONAI-inspired interface to validated radiomics engines (e.g. Pyradiomics), and features tooling designed with voxel-wise modeling workflows in mind.
 
 ---
+
+## Key Features
+
+- Radiomics pipeline with deep-learning–inspired **data dictionary API**
+- Classes for **Habitat Radiomics**
+- Native support for **MONAI transforms** for preprocessing and augmentation [1]
+- Multi-engine backend (**PyRadiomics** [2], **fastrad** [3])
+
 
 ## Overview
 
