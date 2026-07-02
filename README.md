@@ -1,6 +1,6 @@
 # rocqiomics
 
-![Habitat Map](assets/habitat_example.png)
+![Habitat Map](assets/habitats_map_example.png)
 
 **A Deep Learning-Inspired Radiomics Framework Tailored To Habitat Imaging.**
 
@@ -43,7 +43,7 @@ from monai.transforms import (
     Rotated
 )
 
-### Define data dicts with your case data (metadata optional) ###
+### Define data dicts with your case data (case_id and metadata optional) ###
 data_dicts = [
     {
         'case_id' : 'id_1',
@@ -77,7 +77,7 @@ extractor = rq.Rocqiomics(
     filter_types=['Original', 'Wavelet'],
     bin_width=10.0,
     voxel_based=False,
-    engine='pyradiomics'
+    engine='fastrad'
 )
 
 """
