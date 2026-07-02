@@ -39,6 +39,7 @@ A flexible wrapper around radiomics engines that:
 #### Usage
 
 ```
+### Imports ###
 import rocqiomics as rq
 from rocqiomics.transforms import N4ITKBiasFieldCorrection
 
@@ -49,28 +50,33 @@ from monai.transforms import (
     Rotated
 )
 
+### Define data dicts with your case data (metadata optional) ###
 data_dicts = [
     {
-        'case_id' : 'id1',
-        'image' : # Path to image 1,
-        'mask' : # Path to mask 1,
-        'metadata' : {}
+        'case_id' : 'id_1',
+        'image' : # path/to/image_1,
+        'mask' : # path/to/mask_1,
+        'metadata' : {
+            'modality' : 'CT'
+        }
     },
     {
-        'case_id' : 'id2',
-        'image' : # Path to image 2,
-        'mask' : # Path to mask 2,
-        'metadata' : {}
+        'case_id' : 'id_2',
+        'image' : # path/to/image_2,
+        'mask' : # path/to/mask_2,
+        'metadata' : {
+            'modality' : 'CT'
+        }
     },
 ]
 
+### Define extractor object with desired engine and desired preprocessing and augmentation steps ###
 extractor = rq.Rocqiomics(
     preprocessing=Compose([
         N4ITKBiasFieldCorrection(image_key='image', mask_key='mask', max_iterations=20),
         NormalizeIntensityd(keys=['image']),
         ScaleIntensityd(keys=['image'], factor=99.0, minv=None, maxv=None),
         Spacingd(keys=['image', 'mask'], pixdim=(1.0, 1.0, 1.0), mode=[3, 'nearest']),
-
     ]),
     augmentations=[
         Rotated(keys=['image', 'mask'], angle=0.1, mode=['bilinear', 'nearest]),
@@ -80,6 +86,12 @@ extractor = rq.Rocqiomics(
     engine='pyradiomics'
 )
 
+"""
+Simply run on your data dicts.
+Output: 
+Pandas DataFrame of features (voxel_based=False)
+Dictionary of feature map SimpleITK images (voxel_based=True)
+"""
 results = extractor.run_pipeline(data_dicts)
 ```
 
