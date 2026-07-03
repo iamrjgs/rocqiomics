@@ -4,7 +4,7 @@
 
 **A Deep Learning-Inspired Radiomics Framework Tailored To Habitat Imaging.**
 
-**`rocqiomics`** provides a MONAI-inspired interface to IBSI-compliant radiomics engines, and features tooling designed with voxel-wise "habitat radiomics" workflows in mind.
+**`rocqiomics`** provides a Monai-inspired interface to IBSI-compliant radiomics engines, and features tooling designed with voxel-wise "habitat radiomics" workflows in mind.
 
 Habitat Radiomics extracts voxel-wise feature maps to cluster voxels into several 'habitats' that contain distinct textures. [1]
 
@@ -12,7 +12,7 @@ Habitat Radiomics extracts voxel-wise feature maps to cluster voxels into severa
 
 - Radiomics pipeline with modern, deep-learning–inspired **data dictionary API**
 - Classes for **Habitat Radiomics** - voxel-wise clustering based on multi-channel feature maps 
-- Native support for **MONAI dictionary transforms** for preprocessing and augmentation [2]
+- Native support for **Monai dictionary transforms** for preprocessing and augmentation [2]
 - Uses validated radiomics engine **PyRadiomics** [3] or its PyTorch-based, GPU-native equivalent **fastrad** [4]
 - Provides seamless portability of existing Pyradiomics workflows with a user-friendly interface
 ---
@@ -222,6 +222,10 @@ git clone https://github.com/iamrjgs/rocqiomics.git
 cd rocqiomics
 pip install -e .
 ```
+
+## Acknowledgements
+
+Development of `rocqiomics` was supported by grants from the the US National Cancer Institute and the Roswell Park Alliance Foundation.
 
 ## References
 
