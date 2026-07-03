@@ -225,7 +225,7 @@ pip install -e .
 
 ## Acknowledgements
 
-Development of `rocqiomics` was supported by grants from the the US National Cancer Institute and the Roswell Park Alliance Foundation.
+Development of `rocqiomics` was supported by grants from the the US National Cancer Institute 1R01CA243456-01A1 and the Roswell Park Alliance Foundation.
 
 ## References
 
