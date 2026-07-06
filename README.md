@@ -91,8 +91,8 @@ results = extractor.run_pipeline(data_dicts)
 Otherwise, for memory efficiency (especially with feature maps),
 run the generator-based pipeline to generate results dynamically.
 """
-results = self.map_extractor.run_generator(data_dicts)
-for res_dict in results:
+results_generator = self.map_extractor.run_generator(data_dicts)
+for res_dict in results_generator:
     # do something with result_dict
 ```
 
