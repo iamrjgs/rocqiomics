@@ -201,8 +201,8 @@ vector_img = sitk.Compose([adc_img, t1map_img])
 # Wrap vector image in our data_dict format
 data_dicts = [
     {
-        'image' : vector_img_1,
-        'mask : mask_img_1 # optional
+        'image' : vector_img,
+        'mask : mask_img # optional
     }
 ]
 
