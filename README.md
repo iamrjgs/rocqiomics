@@ -71,7 +71,7 @@ extractor = rq.Rocqiomics(
         Spacingd(keys=['image', 'mask'], pixdim=(1.0, 1.0, 1.0), mode=[3, 'nearest']),
     ]),
     augmentations=[
-        Rotated(keys=['image', 'mask'], angle=0.1, mode=['bilinear', 'nearest]),
+        Rotated(keys=['image', 'mask'], angle=0.1, mode=['bilinear', 'nearest']),
     ],
     filter_types=['Original', 'Wavelet'],
     bin_width=10.0,
