@@ -68,7 +68,6 @@ extractor = rq.Rocqiomics(
     preprocessing=Compose([
         N4ITKBiasFieldCorrection(image_key='image', mask_key='mask', max_iterations=20),
         NormalizeIntensityd(keys=['image']),
-        ScaleIntensityd(keys=['image'], factor=99.0, minv=None, maxv=None),
         Spacingd(keys=['image', 'mask'], pixdim=(1.0, 1.0, 1.0), mode=[3, 'nearest']),
     ]),
     augmentations=[
@@ -81,11 +80,20 @@ extractor = rq.Rocqiomics(
 )
 
 """
-Run on your data dicts. Output is:
+Run on all data dicts. Output is:
  - Pandas DataFrame of features (voxel_based=False)
  - Dictionary of feature map SimpleITK images (voxel_based=True)
 """
 results = extractor.run_pipeline(data_dicts)
+
+
+"""
+Otherwise, for memory efficiency (especially with feature maps),
+run the generator-based pipeline to generate results dynamically.
+"""
+results = self.map_extractor.run_generator(data_dicts)
+for res_dict in results:
+    # do something with result_dict
 ```
 
 ### 🔹 `RadiomicsHabitatGenerator` | **End-to-End Habitat Radiomics Pipeline**
@@ -138,11 +146,10 @@ radhab = rq.RadiomicsHabitatGenerator(
     preprocessing=Compose([
         N4ITKBiasFieldCorrection(image_key='image', mask_key='mask', max_iterations=20),
         NormalizeIntensityd(keys=['image']),
-        ScaleIntensityd(keys=['image'], factor=99.0, minv=None, maxv=None),
         Spacingd(keys=['image', 'mask'], pixdim=(1.0, 1.0, 1.0), mode=[3, 'nearest']),
     ]),
     augmentations=[
-        Rotated(keys=['image', 'mask'], angle=0.1, mode=['bilinear', 'nearest]),
+        Rotated(keys=['image', 'mask'], angle=0.1, mode=['bilinear', 'nearest']),
     ],
     bin_width=10.0,
     features=['Mean', 'Autocorrelation', 'Entropy],
@@ -184,12 +191,12 @@ import rocqiomics as rq
 import SimpleITK as sitk
 
 # Load channel images
-adc_img = sitk.ReadImage(../path/to/ADCmap.nrrd)
-t1map_img = sitk.ReadImage(../path/to/T1map.nrrd)
-mask_img = sitk.ReadImage(../path/to/mask.seg.nrrd) # Optional
+adc_img = sitk.ReadImage('../path/to/ADCmap.nrrd')
+t1map_img = sitk.ReadImage('../path/to/T1map.nrrd')
+mask_img = sitk.ReadImage('../path/to/mask.seg.nrrd') # Optional
 
 # Stack channels into a single one vector image
-vector_img = sitk.Compose([adc_img, timap_img])
+vector_img = sitk.Compose([adc_img, t1map_img])
 
 # Wrap vector image in our data_dict format
 data_dicts = [

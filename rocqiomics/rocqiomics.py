@@ -302,10 +302,10 @@ class Rocqiomics:
 
         # Get loaded, preprocessed, and (potentially) augmented data
         case_id, image, mask, metadata = (
-            case.get(self.id_col),
+            case.get(self.id_col, ''),
             case.get("image"),
             case.get("mask"),
-            case.get("metadata"),
+            case.get("metadata", {}),
         )
                 
         # Extract feature vector or map depending on voxel_based extraction mode
@@ -322,7 +322,7 @@ class Rocqiomics:
 
         return {
             'result' : result,
-            'case_id' : case_id,
+            self.id_col : case_id,
             'image' : image,
             'mask' : mask,
             'metadata' : metadata
