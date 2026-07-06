@@ -157,7 +157,7 @@ radhab = rq.RadiomicsHabitatGenerator(
     algorithm='kmeans',
     n_clusters=4,
     batch_size=25,
-    save_vector_dirpath=../path/for/temporary/4d_vectors_storage/before/clustering, # required
+    save_vector_dirpath='../path/for/temporary/4d_vectors_storage/before/clustering', # required
 )
 
 """
