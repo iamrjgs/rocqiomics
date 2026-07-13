@@ -86,7 +86,6 @@ Run on all data dicts. Output is:
 """
 results = extractor.run_pipeline(data_dicts)
 
-
 """
 Otherwise, for memory efficiency (especially with feature maps),
 run the generator-based pipeline to generate results dynamically.
@@ -96,9 +95,8 @@ for res_dict in results_generator:
     # do something with result_dict
 
 
-
 """
-Do you want to reproduce a Pyradiomics workflow? Just pass the settings YAML file as a parameter!
+Want to reproduce a Pyradiomics workflow? Just pass the settings YAML file as a parameter!
 """
 extractor = rq.Rocqiomics(
     extraction_settings_yaml_filepath='../path/to/settings.yaml',
