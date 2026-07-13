@@ -601,16 +601,16 @@ class Rocqiomics:
 
         if ext in [".xlsx", ".xls"]:
             try:
-                df.to_excel(filepath, index=False, **kwargs)
+                df.to_excel(filepath, **kwargs)
                 return filepath
             except Exception:
                 csv_path = os.path.splitext(filepath)[0] + ".csv"
-                df.to_csv(csv_path, index=False, **kwargs)
+                df.to_csv(csv_path, **kwargs)
                 return csv_path
         else:
             if ext != ".csv":
                 filepath = os.path.splitext(filepath)[0] + ".csv"
-            df.to_csv(filepath, index=False, **kwargs)
+            df.to_csv(filepath, **kwargs)
             return filepath
 
     def __len__(self):

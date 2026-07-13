@@ -94,6 +94,17 @@ run the generator-based pipeline to generate results dynamically.
 results_generator = self.map_extractor.run_generator(data_dicts)
 for res_dict in results_generator:
     # do something with result_dict
+
+
+
+"""
+Do you want to reproduce a Pyradiomics workflow? Just pass the settings YAML file as a parameter!
+"""
+extractor = rq.Rocqiomics(
+    extraction_settings_yaml_filepath='../path/to/settings.yaml',
+    engine='pyradiomics'
+)
+results = extractor.run_pipeline(data_dicts)
 ```
 
 ### 🔹 `RadiomicsHabitatGenerator` | **End-to-End Habitat Radiomics Pipeline**
