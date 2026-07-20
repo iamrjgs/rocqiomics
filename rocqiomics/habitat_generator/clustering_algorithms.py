@@ -87,29 +87,6 @@ class FuzzyCMeansClustering(VoxelClusteringAlgorithm):
     def get_labels_from_probs(self, u):
         return np.argmax(u, axis=0)
     
-    def _apply_normalization_and_weights(self, X):
-        if self.mean_ is not None and self.std_ is not None:
-            n_int = len(self.mean_)
-            X_int = (X[:, :n_int] - self.mean_) / self.std_
-            
-            if X.shape[1] > n_int:
-                # If there are more channels than means, only normalize the first n_int channels
-                # This will happen, e.g. when spatial features are included, since mean/std are
-                # not computed for these.
-                X = np.concatenate([X_int, X[:, n_int:]], axis=1)
-            else:
-                X = X_int
-
-        if self.weights is not None:
-            if X.shape[1] != len(self.weights):
-                raise ValueError(
-                    f"Feature dimension mismatch: X has {X.shape[1]} features, "
-                    f"but weights has length {len(self.weights)}"
-                )
-            X = X * self.weights
-
-        return X
-    
     def fit(self, X):
         X = self._apply_normalization_and_weights(X)
         cntr, u, u0, d, jm, p, fpc = skfuzzy.cmeans(
