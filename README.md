@@ -190,7 +190,8 @@ Clusters voxels based on 4D feature vectors across channels, which could be:
 #### Supported algorithms
 - MiniBatch KMeans
 - Gaussian Mixture Models (GMM)
-- Birch clustering
+- Birch 
+- Fuzzy C Means
 
 
 #### Usage

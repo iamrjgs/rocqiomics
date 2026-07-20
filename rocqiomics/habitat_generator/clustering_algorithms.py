@@ -58,3 +58,22 @@ class BirchClustering(VoxelClusteringAlgorithm):
             n_clusters=self.n_clusters,
             **self.kwargs
         )
+
+
+class FuzzyCMeansClustering(VoxelClusteringAlgorithm):
+    def __init__(self, n_clusters, mean_=None, std_=None, batch_size=100, weights=None, **kwargs):
+        super().__init__(n_clusters, mean_=mean_, std_=std_)
+        self.kwargs = kwargs
+
+    def _init_model(self):
+        try:
+            from fuzzy_c_means import FuzzyCMeans
+            self.model = FuzzyCMeans(
+                n_clusters=self.n_clusters,
+                **self.kwargs
+            )
+        except ImportError:
+            raise ImportError(
+                "FuzzyCMeans clustering requires the scikit-fuzzy-c-means package. "
+                "Please install this package or choose another algorithm. "
+                )

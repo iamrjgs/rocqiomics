@@ -11,7 +11,8 @@ from rocqiomics.utils import resample_to_target_image
 from .clustering_algorithms import (
     KMeansClustering,
     GMMClustering,
-    BirchClustering
+    BirchClustering,
+    FuzzyCMeansClustering
 )
 
 class HabitatGenerator:
@@ -20,7 +21,10 @@ class HabitatGenerator:
         "kmeans": KMeansClustering,
         "gmm": GMMClustering,
         "gaussian_mixture": GMMClustering,
-        "birch" : BirchClustering
+        "birch" : BirchClustering,
+        "fuzzy" : FuzzyCMeansClustering,
+        "cmeans" : FuzzyCMeansClustering,
+        "fuzzy_c_means" : FuzzyCMeansClustering
     }
 
     def __init__(self,
