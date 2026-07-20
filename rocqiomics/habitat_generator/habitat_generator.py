@@ -385,38 +385,50 @@ class HabitatGenerator:
         total_sum = None
         total_sq = None
         total_n = 0
-        global_min = np.inf
-        global_max = -np.inf
+
+        global_min = None
+        global_max = None
+
         for batch in self._iter_batches(data):
             for dd in batch:
                 img, mask, _ = self._load_image_as_numpy(dd)
+
                 img = self._select_channels(img)
                 mask = self._prepare_mask(mask, img)
+
                 vox = img.reshape(-1, img.shape[-1])
                 mask_flat = mask.reshape(-1).astype(bool)
                 vox = vox[mask_flat]
-                
+
                 if vox.size == 0:
                     continue
-                if total_sum is None:
-                    total_sum = vox.sum(axis=0)
-                    total_sq = (vox ** 2).sum(axis=0)
-                else:
-                    total_sum += vox.sum(axis=0)
-                    total_sq += (vox ** 2).sum(axis=0)
-                total_n += vox.shape[0]
 
-                global_min = min(global_min, vox.min())
-                global_max = max(global_max, vox.max())
+                if total_sum is None:
+                    total_sum = vox.sum(axis=0, dtype=np.float64)
+                    total_sq = (vox ** 2).sum(axis=0, dtype=np.float64)
+
+                    global_min = vox.min(axis=0)
+                    global_max = vox.max(axis=0)
+                else:
+                    total_sum += vox.sum(axis=0, dtype=np.float64)
+                    total_sq += (vox ** 2).sum(axis=0, dtype=np.float64)
+
+                    global_min = np.minimum(global_min, vox.min(axis=0))
+                    global_max = np.maximum(global_max, vox.max(axis=0))
+
+                total_n += vox.shape[0]
 
         if total_n == 0:
             raise ValueError("No valid voxels found.")
-                
-        self.max_ = global_max
+
         self.min_ = global_min
+        self.max_ = global_max
+
         self.mean_ = total_sum / total_n
+
         var = total_sq / total_n - self.mean_ ** 2
         var = np.maximum(var, 0)
+
         self.std_ = np.sqrt(var)
         self.std_[self.std_ < 1e-8] = 1.0
 
