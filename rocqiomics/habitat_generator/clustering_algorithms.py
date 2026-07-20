@@ -62,12 +62,8 @@ class BirchClustering(VoxelClusteringAlgorithm):
 
 class FuzzyCMeansClustering(VoxelClusteringAlgorithm):
     def __init__(self, n_clusters, mean_=None, std_=None, batch_size=100, weights=None, **kwargs):
-        super().__init__(n_clusters, mean_=mean_, std_=std_)
-        self.kwargs = kwargs
-
-    def _init_model(self):
         try:
-            import scikit-fuzzy as skfuzzy
+            import skfuzzy
 
             """
             Scikit-fuzzy implements Fuzzy C Means algorithm as fit and predict functions
@@ -83,6 +79,9 @@ class FuzzyCMeansClustering(VoxelClusteringAlgorithm):
                 )
         except Exception as e:
             raise(e)
+        
+        super().__init__(n_clusters, mean_=mean_, std_=std_)
+        self.kwargs = kwargs
         
     def get_labels_from_probs(self, u):
         return np.argmax(u, axis=0)
