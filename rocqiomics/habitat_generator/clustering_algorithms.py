@@ -122,8 +122,8 @@ class FuzzyCMeansClustering(VoxelClusteringAlgorithm):
             test_data=X.T,
             cntr_trained=self.centroids,
             m=self.m,
-            self.error=error,
-            self.maxiter=maxiter
+            error=self.error,
+            maxiter=self.maxiter
         )
         return self.get_labels_from_probs(u)
 
