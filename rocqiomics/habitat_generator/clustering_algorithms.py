@@ -67,7 +67,7 @@ class FuzzyCMeansClustering(VoxelClusteringAlgorithm):
 
     def _init_model(self):
         try:
-            import skfuzzy
+            import scikit-fuzzy as skfuzzy
 
             """
             Scikit-fuzzy implements Fuzzy C Means algorithm as fit and predict functions
