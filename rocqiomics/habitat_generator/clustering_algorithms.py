@@ -64,13 +64,18 @@ class FuzzyCMeansClustering(VoxelClusteringAlgorithm):
     def __init__(self, n_clusters, mean_=None, std_=None, batch_size=100, weights=None, **kwargs):
         try:
             import skfuzzy
-            
+            self._skfuzzy = skfuzzy
+
             self.centroids = None
+
             """
             Scikit-fuzzy implements Fuzzy C Means algorithm as fit and predict functions
             (skfuzzy.cmeans and skfuzzy.cmeans_predicts), not as a class.
+            We thus leave model as None and implement fit and predict by wrapping over
+            these functions.
             """
             self.model = None 
+
         except ImportError:
             raise ImportError(
                 "FuzzyCMeans clustering requires the scikit-fuzzy package. "
@@ -91,7 +96,7 @@ class FuzzyCMeansClustering(VoxelClusteringAlgorithm):
     
     def fit(self, X):
         X = self._apply_normalization_and_weights(X)
-        cntr, u, u0, d, jm, p, fpc = skfuzzy.cmeans(
+        cntr, u, u0, d, jm, p, fpc = self._skfuzzy.cmeans(
             data=X.T, 
             c=self.n_clusters,
             **self.kwargs
@@ -105,7 +110,7 @@ class FuzzyCMeansClustering(VoxelClusteringAlgorithm):
 
     def predict(self, X):
         X = self._apply_normalization_and_weights(X)
-        u, u0, d, jm, p, fpc = skfuzzy.cmeans_predict(
+        u, u0, d, jm, p, fpc = self._skfuzzy.cmeans_predict(
             test_data=X.T,
             cntr_trained=self.centroids,
         )
