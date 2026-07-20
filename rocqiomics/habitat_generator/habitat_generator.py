@@ -41,11 +41,15 @@ class HabitatGenerator:
         self.channels = self._prepare_channels(channels)
         self.batch_size = batch_size
         self.normalize = normalize
-        self.mean_ = None # Computed later
-        self.std_ = None # Computed later
         self.algorithm_name = algorithm
         self.algorithm_kwargs = algorithm_kwargs
         self.n_clusters = n_clusters
+
+        # Computed later
+        self.mean_ = None
+        self.std_ = None 
+        self.min_ = None
+        self.max_ = None
 
         self.logging_level = logging_level or logging.INFO
         self.logger = self._set_logger()
@@ -58,7 +62,6 @@ class HabitatGenerator:
         self.algorithm = None # Prepared later
         self.fitted = False
 
-        
         self._coord_cache = {} # Avoid recomputing coord meshgrid when including spatial features
 
     def fit(self, data):
@@ -377,11 +380,13 @@ class HabitatGenerator:
             yield items[k:k + self.batch_size]
     
     def _compute_stats(self, data):
-        self.logger.info('Computing dataset mean and std.')
+        self.logger.info('Computing dataset mean, std, min, max.')
 
         total_sum = None
         total_sq = None
         total_n = 0
+        global_min = np.inf
+        global_max = -np.inf
         for batch in self._iter_batches(data):
             for dd in batch:
                 img, mask, _ = self._load_image_as_numpy(dd)
@@ -401,9 +406,14 @@ class HabitatGenerator:
                     total_sq += (vox ** 2).sum(axis=0)
                 total_n += vox.shape[0]
 
+                global_min = min(global_min, vox.min())
+                global_max = max(global_max, vox.max())
+
         if total_n == 0:
             raise ValueError("No valid voxels found.")
                 
+        self.max_ = global_max
+        self.min_ = global_min
         self.mean_ = total_sum / total_n
         var = total_sq / total_n - self.mean_ ** 2
         var = np.maximum(var, 0)
