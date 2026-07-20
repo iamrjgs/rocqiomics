@@ -77,3 +77,5 @@ class FuzzyCMeansClustering(VoxelClusteringAlgorithm):
                 "FuzzyCMeans clustering requires the scikit-fuzzy-c-means package. "
                 "Please install this package or choose another algorithm. "
                 )
+        except Exception as e:
+            raise(e)
