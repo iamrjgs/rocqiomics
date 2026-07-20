@@ -59,7 +59,6 @@ class BirchClustering(VoxelClusteringAlgorithm):
             **self.kwargs
         )
 
-
 class FuzzyCMeansClustering(VoxelClusteringAlgorithm):
     def __init__(self, n_clusters, mean_=None, std_=None, batch_size=100, weights=None, **kwargs):
         try:
@@ -99,6 +98,9 @@ class FuzzyCMeansClustering(VoxelClusteringAlgorithm):
         cntr, u, u0, d, jm, p, fpc = self._skfuzzy.cmeans(
             data=X.T, 
             c=self.n_clusters,
+            m=2,
+            error=0.005,
+            maxiter=1000,
             **self.kwargs
         )
         self.centroids = cntr
