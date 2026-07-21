@@ -32,7 +32,7 @@ class Rocqiomics:
                 force_2D: bool=False,
                 force_2D_dimension: int=0,
                 bin_count: Optional[int]=None,
-                bin_width: Optional[float]=25.0,
+                bin_width: Optional[float]=None,
                 feature_classes: List[str]=None,
                 features: List[str]=None,
                 filter_types: List[str]=None,
@@ -144,14 +144,22 @@ class Rocqiomics:
         self.voxel_based_settings = voxel_based_settings
         self.force_2D: bool = force_2D
         self.force_2D_dimension: int = force_2D_dimension
-        self.bin_count: Optional[int] = bin_count
-        self.bin_width: Optional[float] = bin_width
         self.cache_feature_maps: bool = cache_feature_maps
         self.filter_types: List[str] = filter_types or ["Original"]
         self.filter_settings: Dict = filter_settings or {"Original" : {}}
         self.filter_settings = {k:v for k,v in self.filter_settings.items() if k in self.filter_types}
         self._set_feature_classes(feature_classes)
         self.features = features
+
+        # Set discretization settings
+        self.bin_count: Optional[int] = bin_count
+        self.bin_width: Optional[float] = bin_width
+        
+        if self.bin_count is None and self.bin_width is None:
+            self.bin_width = 25.0
+            self.logger.warning('Bin width and bin count both None. Bin width of 25 will be used by default.')
+        if self.bin_count is not None and self.bin_width is not None:
+            self.logger.warning('Bin width and bin count are both set. Bin width will be used by default.')
 
         # Set radiomics feature extractor
         from rocqiomics.extraction_engines.engine_map import MAP_ENGINE

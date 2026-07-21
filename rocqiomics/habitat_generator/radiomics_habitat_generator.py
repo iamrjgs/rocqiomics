@@ -18,7 +18,7 @@ class RadiomicsHabitatGenerator:
                  algorithm='kmeans',
                  n_clusters=3,
                  batch_size=50,
-                 bin_width=25.0,
+                 bin_width=None,
                  bin_count=None,
                  engine='pyradiomics',
                  voxel_based_settings=None,
