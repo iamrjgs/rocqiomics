@@ -88,9 +88,12 @@ class PyradiomicsExtractor(FeatureExtractionEngine):
             params_dict["setting"]["binWidth"] = bin_width
         else:
             if bin_count is not None:
+                params_dict["setting"]["binWidth"] = None
                 params_dict["setting"]["binCount"] = bin_count
 
         extractor._applyParams(paramsDict=params_dict)
+
+        print(f'AAAA: {extractor.settings}')
 
         if features is not None:
             extractor.disableAllFeatures()
