@@ -93,8 +93,6 @@ class PyradiomicsExtractor(FeatureExtractionEngine):
 
         extractor._applyParams(paramsDict=params_dict)
 
-        print(f'AAAA: {extractor.settings}')
-
         if features is not None:
             extractor.disableAllFeatures()
             enabled = {cl: [] for cl in self.all_feature_classes}
