@@ -170,6 +170,7 @@ class Rocqiomics:
             force_2D=self.force_2D,
             force_2D_dimension=self.force_2D_dimension,
             bin_width=self.bin_width,
+            bin_count=self.bin_count,
             feature_classes=self.feature_classes,
             features=self.features,
             filter_types=self.filter_types,
