@@ -27,7 +27,8 @@ class RadiomicsHabitatGenerator:
                  average_augmentations=False,
                  include_spatial_features=False,
                  feature_weights=None,
-                 spatial_weights=None
+                 spatial_weights=None,
+                 **kwargs
                  ):
         self.preprocessing = preprocessing
         self.augmentations = augmentations if augmentations is not None else []
@@ -45,6 +46,7 @@ class RadiomicsHabitatGenerator:
         self.include_spatial_features = include_spatial_features
         self.feature_weights = feature_weights
         self.spatial_weights = spatial_weights
+        self.kwargs = kwargs
 
         if voxel_based_settings is None:
             self.voxel_based_settings = {
@@ -252,7 +254,8 @@ class RadiomicsHabitatGenerator:
             filter_types=self.filter_types,
             cache_feature_maps=True,
             save_results=self.save_fmaps_dirpath is not None,
-            save_dirpath=self.save_fmaps_dirpath
+            save_dirpath=self.save_fmaps_dirpath,
+            **self.kwargs
         )
 
     def _init_habitat_generator(self):
