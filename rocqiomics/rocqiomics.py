@@ -576,7 +576,8 @@ class Rocqiomics:
             mdata = case['metadata']
 
             for md in mdata.keys():
-                log_data.append(f'{md}: {str(mdata[md])}')
+                if '_path' not in md:
+                    log_data.append(f'{md}: {str(mdata[md])}')
 
         log_txt = '\t'.join(log_data)
         
