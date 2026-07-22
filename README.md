@@ -107,7 +107,7 @@ extractor = rq.Rocqiomics(
 results = extractor.run_pipeline(data_dicts)
 ```
 
-Want to implement a perturbation-based worflow a la [5]? Use augmentations!
+Want to implement a perturbation-based worflow a la Zwanenburg et al. [5]? Use augmentations!
 
 ```
 import numpy as np
@@ -118,6 +118,7 @@ from monai.transforms import (
 )
 
 NUM_PERTURBATIONS = 10
+
 random_perturbation = Compose([
     RandGaussianNoised(keys=['image'], prob=1, mean=0, std=500, sample_std=True),
     RandAffined(
