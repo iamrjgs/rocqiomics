@@ -107,7 +107,7 @@ extractor = rq.Rocqiomics(
 results = extractor.run_pipeline(data_dicts)
 ```
 
-Want to implement a perturbation-based worflow a la Zwanenburg et al. [5]? Use augmentations!
+Want to implement a perturbation-based workflow a la Zwanenburg et al. [5]? Use augmentations!
 
 ```
 import numpy as np
