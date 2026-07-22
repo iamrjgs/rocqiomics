@@ -231,9 +231,9 @@ class HabitatGenerator:
                 sp1 = tuple(round(x, 3) for x in g1['spacing'])
                 sp2 = tuple(round(x, 3) for x in g2['spacing'])
 
-                self.logger.info(f'Mask was resampled to image geometry. '
-                                 f'Initial size: {sz1} | New size: {sz2}. '
-                                 f'Initial spacing: {sp1} | New spacing: {sp2}. '
+                self.logger.info(f'Mask was resampled from mask -> image geometry. '
+                                 f'Size: {sz1} -> {sz2}. '
+                                 f'Spacing: {sp1} -> {sp2}. '
                                  )
             except Exception as e:
                 raise ValueError(f'Mask could not be resampled to image space. Exception: {e}')
