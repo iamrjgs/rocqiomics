@@ -231,7 +231,7 @@ class HabitatGenerator:
                 sp1 = tuple(round(x, 3) for x in g1['spacing'])
                 sp2 = tuple(round(x, 3) for x in g2['spacing'])
 
-                self.logger.info(f'Mask was resampled from mask -> image geometry. '
+                self.logger.info(f'Mask was resampled to image geometry. '
                                  f'Size: {sz1} -> {sz2}. '
                                  f'Spacing: {sp1} -> {sp2}. '
                                  )
