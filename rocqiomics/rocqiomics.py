@@ -141,7 +141,6 @@ class Rocqiomics:
 
         # Set extraction settings
         self.voxel_based: bool = voxel_based
-        self.voxel_based_settings = voxel_based_settings
         self.force_2D: bool = force_2D
         self.force_2D_dimension: int = force_2D_dimension
         self.cache_feature_maps: bool = cache_feature_maps
@@ -150,6 +149,14 @@ class Rocqiomics:
         self.filter_settings = {k:v for k,v in self.filter_settings.items() if k in self.filter_types}
         self._set_feature_classes(feature_classes)
         self.features = features
+        if voxel_based_settings is None:
+            self.voxel_based_settings = {
+                'kernelRadius' : 1,
+                'maskedKernel' : False,
+                'initValue' : 0.0,
+            }   
+        else:
+            self.voxel_based_settings = voxel_based_settings
 
         # Set discretization settings
         self.bin_count: Optional[int] = bin_count

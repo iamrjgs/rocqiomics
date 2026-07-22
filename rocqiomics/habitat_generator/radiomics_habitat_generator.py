@@ -50,7 +50,7 @@ class RadiomicsHabitatGenerator:
 
         if voxel_based_settings is None:
             self.voxel_based_settings = {
-                'kernelRadius' : 3,
+                'kernelRadius' : 1,
                 'maskedKernel' : False,
                 'initValue' : 0.0,
             }   

@@ -37,7 +37,8 @@ class HabitatGenerator:
                  channel_weights=None,
                  spatial_weights=None,
                  logging_level=None,
-                 **algorithm_kwargs):
+                 **algorithm_kwargs
+                 ):
         self.channels = self._prepare_channels(channels)
         self.batch_size = batch_size
         self.normalize = normalize
@@ -214,7 +215,7 @@ class HabitatGenerator:
             if os.path.exists(mask):
                 mask = sitk.ReadImage(mask)
             else:
-                self.logger.warn(f"Mask at path {mask} not found. Defaulting to whole-image mask.")
+                self.logger.warning(f"Mask at path {mask} not found. Defaulting to whole-image mask.")
                 mask = self.full_mask_from_image(image)
         elif isinstance(mask, np.ndarray):
             mask = sitk.GetImageFromArray(mask)
