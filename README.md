@@ -73,7 +73,7 @@ extractor = rq.Rocqiomics(
     augmentations=[
         Rotated(keys=['image', 'mask'], angle=0.1, mode=['bilinear', 'nearest']),
     ],
-    filter_types=['Original', 'Wavelet'],
+    filter_types=['Original'],
     bin_width=10.0,
     voxel_based=False,
     engine='fastrad'
@@ -94,13 +94,49 @@ results_generator = self.map_extractor.run_generator(data_dicts)
 for res_dict in results_generator:
     # do something with result_dict
 
+```
 
-"""
+
 Want to reproduce a Pyradiomics workflow? Just pass the settings YAML file as a parameter!
-"""
+
+```
 extractor = rq.Rocqiomics(
     extraction_settings_yaml_filepath='../path/to/settings.yaml',
     engine='pyradiomics'
+)
+results = extractor.run_pipeline(data_dicts)
+```
+
+Want to implement a perturbation-based worflow a la [5]? Use augmentations!
+
+```
+import numpy as np
+
+from monai.transforms import (
+    RandGaussianNoised,
+    RandAffined
+)
+
+NUM_PERTURBATIONS = 10
+random_perturbation = Compose([
+    RandGaussianNoised(keys=['image'], prob=1, mean=0, std=500, sample_std=True),
+    RandAffined(
+        keys=['image', 'mask'], mode=[3, 'nearest'], prob=1.0,
+        rotate_range=(0.0, 0.0, np.deg2rad(5.0)), translate_range=(1.0, 1.0, 0.0)
+    ),
+])
+
+extractor = rq.Rocqiomics(
+    preprocessing=Compose([
+        N4ITKBiasFieldCorrection(image_key='image', mask_key='mask', max_iterations=20),
+        NormalizeIntensityd(keys=['image']),
+        Spacingd(keys=['image', 'mask'], pixdim=(1.0, 1.0, 1.0), mode=[3, 'nearest']),
+    ]),
+    augmentations=[random_perturbation for i in range(NUM_PERTURBATIONS)],
+    filter_types=['Original'],
+    bin_width=10.0,
+    voxel_based=False,
+    engine='fastrad'
 )
 results = extractor.run_pipeline(data_dicts)
 ```
@@ -162,7 +198,7 @@ radhab = rq.RadiomicsHabitatGenerator(
     ],
     bin_width=10.0,
     features=['Mean', 'Autocorrelation', 'Entropy],
-    filter_types=['Original', 'Square'],
+    filter_types=['Original'],
     algorithm='kmeans',
     n_clusters=4,
     batch_size=25,
