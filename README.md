@@ -112,7 +112,13 @@ Want to implement a perturbation-based workflow a la Zwanenburg et al. [5]? Use 
 ```
 import numpy as np
 
+import rocqiomics as rq
+from rocqiomics.transforms import N4ITKBiasFieldCorrection
+
 from monai.transforms import (
+    Compose,
+    NormalizeIntensityd,
+    Spacingd,
     RandGaussianNoised,
     RandAffined
 )
@@ -198,7 +204,7 @@ radhab = rq.RadiomicsHabitatGenerator(
         Rotated(keys=['image', 'mask'], angle=0.1, mode=['bilinear', 'nearest']),
     ],
     bin_width=10.0,
-    features=['Mean', 'Autocorrelation', 'Entropy],
+    features=['Mean', 'Autocorrelation', 'Entropy'],
     filter_types=['Original'],
     algorithm='kmeans',
     n_clusters=4,
@@ -218,7 +224,7 @@ predictions, result_ddicts = radhab.fit_predict(data_dicts)
 
 ### 🔹 `HabitatGenerator` | **Voxel Clustering Engine for Multi-Channel Imaging**
 
-Clusters voxels based on 4D feature vectors across channels, which could be:
+Clusters voxels based on 3D vector images with channels, which could be:
 
 - Radiomics feature maps  
 - Multiparametric MRI images 
@@ -240,10 +246,11 @@ import SimpleITK as sitk
 # Load channel images
 adc_img = sitk.ReadImage('../path/to/ADCmap.nrrd')
 t1map_img = sitk.ReadImage('../path/to/T1map.nrrd')
+t2map_img = sitk.ReadImage('../path/to/T2map.nrrd')
 mask_img = sitk.ReadImage('../path/to/mask.seg.nrrd') # Optional
 
-# Stack channels into a single one vector image
-vector_img = sitk.Compose([adc_img, t1map_img])
+# Stack channels into a single vector image
+vector_img = sitk.Compose([adc_img, t1map_img, t2map_img])
 
 # Wrap vector image in our data_dict format
 data_dicts = [
@@ -255,7 +262,7 @@ data_dicts = [
 
 ### Define habitat generator with channel names and number of clusters to fit
 habitat_generator = HabitatGenerator(
-    channels=["ADC", "T1map"],
+    channels=["ADC", "T1map", "T2map"],
     n_clusters=4,
     algorithm='gmm'
 )

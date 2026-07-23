@@ -589,7 +589,7 @@ class Rocqiomics:
 
         log_txt = '\t'.join(log_data)
         
-        self.logger.info(f'Case {idx}/{last_idx} done. Load time: {load_time:.2f} | Extraction time {extraction_time:.2f}s\t{log_txt}')
+        self.logger.info(f'Case {idx}/{last_idx} done in {load_time:.2f}s (load) + {extraction_time:.2f}s (extraction). \t{log_txt}')
         self.logger.debug(case)
 
     @staticmethod
