@@ -198,9 +198,9 @@ class Rocqiomics:
 
         self._initialize_dataset(data_dicts, case_ids=case_ids)
 
-        for idx, case in enumerate(self.dataset):
+        for idx, (case, load_time) in enumerate(self.dataset):
             try:
-                results_dict = self._run_case(idx, case)
+                results_dict = self._run_case(idx, case, load_time)
                 self.results.append(results_dict['result'])
             except Exception as e:
                 self._handle_case_error(case=case, error=e)
@@ -224,9 +224,9 @@ class Rocqiomics:
 
         self._initialize_dataset(data_dicts, case_ids=case_ids)
 
-        for idx, case in enumerate(self.dataset):
+        for idx, (case, load_time) in enumerate(self.dataset):
             try:
-                yield self._run_case(idx, case)
+                yield self._run_case(idx, case, load_time)
             except Exception as e:
                 self._handle_case_error(case=case, error=e)
 
@@ -313,9 +313,7 @@ class Rocqiomics:
             self.save_tabular_dataset(df, filepath)
             self.logger.info(f'Results saved to {filepath}')
 
-    def _run_case(self, idx, case):
-        start_time = time.perf_counter()
-
+    def _run_case(self, idx, case, load_time=None):
         # Get loaded, preprocessed, and (potentially) augmented data
         case_id, image, mask, metadata = (
             case.get(self.id_col, ''),
@@ -325,7 +323,9 @@ class Rocqiomics:
         )
                 
         # Extract feature vector or map depending on voxel_based extraction mode
+        start_time = time.perf_counter()
         extraction_results = self.extractor.extract(image, mask)
+        extraction_time = time.perf_counter() - start_time
 
         # Handle results metadata addition and/or saving depending on voxel_based extraction mode
         if self.voxel_based:
@@ -334,7 +334,7 @@ class Rocqiomics:
             result = self._handle_feature_vectors(case_id, extraction_results, metadata)
 
         # Log results
-        self._log_case_data(idx, case, start_time)
+        self._log_case_data(idx, case, extraction_time, load_time)
 
         return {
             'result' : result,
@@ -353,8 +353,8 @@ class Rocqiomics:
             validate_inputs=self.validate_inputs
         )
         # Set Dataset to handle loading, augmentation, and preprocessing
-        from rocqiomics.dataset import AugmentedDataset
-        self.dataset = AugmentedDataset(
+        from rocqiomics.dataset import TimedAugmentedDataset
+        self.dataset = TimedAugmentedDataset(
             data=self.data_dicts,
             load_transform=self.load_transform,
             preprocessing=self.preprocessing,
@@ -573,7 +573,7 @@ class Rocqiomics:
 
         return logger_obj
     
-    def _log_case_data(self, idx, case, start_time):
+    def _log_case_data(self, idx, case, extraction_time, load_time):
         log_data = []
         last_idx = len(self) - 1
 
@@ -589,8 +589,7 @@ class Rocqiomics:
 
         log_txt = '\t'.join(log_data)
         
-        run_time = time.perf_counter() - start_time
-        self.logger.info(f'Case {idx}/{last_idx} done in {run_time:.2f}s\t{log_txt}')
+        self.logger.info(f'Case {idx}/{last_idx} done. Load time: {load_time:.2f} | Extraction time {extraction_time:.2f}s\t{log_txt}')
         self.logger.debug(case)
 
     @staticmethod

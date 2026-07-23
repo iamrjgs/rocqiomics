@@ -1,5 +1,6 @@
 import copy
 import monai
+import time
 
 class AugmentedDataset(monai.data.Dataset):
     """
@@ -76,3 +77,21 @@ class AugmentedDataset(monai.data.Dataset):
             loaded_data = self.preprocessing(loaded_data)
         
         return loaded_data
+
+
+class TimedAugmentedDataset(AugmentedDataset):
+    """
+    Wraps AugmentedDataset and returns the sample together with the
+    time taken to load/process it.
+
+    Returns
+    -------
+    (data, elapsed_time)
+        data: output of AugmentedDataset.__getitem__()
+        elapsed_time: time in seconds spent inside __getitem__
+    """
+    def __getitem__(self, idx):
+        start = time.perf_counter()
+        data = super().__getitem__(idx)
+        elapsed = time.perf_counter() - start
+        return data, elapsed
