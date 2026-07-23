@@ -271,7 +271,7 @@ habitat_generator = HabitatGenerator(
 Fit the habitat generator using data and return the predicted habitats
 Output is a list of numpy arrays (or, optionally, sitk images) containing habitat predictions
 """
-predictions = gmm.fit_predict(data=data_dicts, return_as_sitk_image=False)
+predictions = habitat_generator.fit_predict(data=data_dicts, return_as_sitk_image=False)
 
 ```
 
