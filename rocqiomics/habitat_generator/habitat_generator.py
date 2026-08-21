@@ -6,7 +6,12 @@ import sys
 
 import numpy as np
 import SimpleITK as sitk
-from rocqiomics.utils import resample_to_target_image
+from rocqiomics.utils import (
+    resample_to_target_image,
+    extract_geometry_info,
+    set_geometry_info,
+    geometries_match
+)
 
 from .clustering_algorithms import (
     KMeansClustering,
@@ -136,7 +141,7 @@ class HabitatGenerator:
 
             if return_as_sitk_image:
                 labels = sitk.GetImageFromArray(labels)
-                labels = self.set_geometry_info(labels, geometry_info)
+                labels = set_geometry_info(labels, geometry_info)
 
             outputs.append(labels)
                 
@@ -204,10 +209,10 @@ class HabitatGenerator:
         if isinstance(image, np.ndarray):
             image = sitk.GetImageFromArray(image)
         if isinstance(image, sitk.Image):
-            geometry_info = self.extract_geometry_info(image)
+            geometry_info = extract_geometry_info(image)
         if isinstance(image, str):
             image = sitk.ReadImage(image)
-            geometry_info = self.extract_geometry_info(image)
+            geometry_info = extract_geometry_info(image)
 
         mask = dd['mask'] if 'mask' in dd else self.full_mask_from_image(image)
 
@@ -221,11 +226,11 @@ class HabitatGenerator:
             mask = sitk.GetImageFromArray(mask)
 
         # Check if image and mask geometries match; resample mask to image geometry if not.
-        if not self._geometries_match(image, mask):
+        if not geometries_match(image, mask):
             try:
-                g1 = self.extract_geometry_info(mask)
+                g1 = extract_geometry_info(mask)
                 mask = resample_to_target_image(mask, image, is_mask=True)
-                g2 = self.extract_geometry_info(mask)
+                g2 = extract_geometry_info(mask)
 
                 sz1 = g1['size']
                 sz2 = g2['size']
@@ -432,20 +437,6 @@ class HabitatGenerator:
 
         self.std_ = np.sqrt(var)
         self.std_[self.std_ < 1e-8] = 1.0
-
-    def _geometries_match(self, img1, img2, tol=1e-6):
-        info1 = self.extract_geometry_info(img1)
-        info2 = self.extract_geometry_info(img2)
-
-        if info1['size'] != info2['size']:
-            return False
-        if not np.allclose(info1['spacing'], info2['spacing'], atol=tol):
-            return False
-        if not np.allclose(info1['origin'], info2['origin'], atol=tol):
-            return False
-        if not np.allclose(info1['direction'], info2['direction'], atol=tol):
-            return False
-        return True
     
     def _set_logger(self):
         name = str(__package__)
@@ -462,38 +453,7 @@ class HabitatGenerator:
         logger_obj.addHandler(console_handler)
         logging.getLogger("py.warnings").setLevel(logging.ERROR)
         return logger_obj
-    
-    @staticmethod
-    def extract_geometry_info(img):
-        if isinstance(img, np.ndarray):
-            img = sitk.GetImageFromArray(img)
-        return {
-            'origin' : img.GetOrigin(),
-            'spacing' : img.GetSpacing(),
-            'direction' : img.GetDirection(),
-            'size' : img.GetSize()
-        }
 
-    @staticmethod
-    def set_geometry_info(img, geometry_info):
-        dim = img.GetDimension()
-
-        origin = geometry_info.get('origin', (0.0,) * dim)
-        spacing = geometry_info.get('spacing', (1.0,) * dim)
-
-        default_direction = tuple(
-            1.0 if i == j else 0.0
-            for i in range(dim)
-            for j in range(dim)
-        )
-
-        direction = geometry_info.get('direction', default_direction)
-
-        img.SetOrigin(origin)
-        img.SetSpacing(spacing)
-        img.SetDirection(direction)
-        return img
-    
     @staticmethod
     def full_mask_from_image(image):
         mask = sitk.Image(image.GetSize(), sitk.sitkUInt8)
