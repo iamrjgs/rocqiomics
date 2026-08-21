@@ -230,7 +230,7 @@ class RadiomicsHabitatGenerator:
                                 baseline,
                                 is_mask=False
                             )
-                            self.logger.info('Augmented features maps resampled to baseline geometry for averaging.')
+                            self.logger.info('Augmented feature maps resampled to baseline geometry for averaging.')
                         
                     # Perform feature-wise averaging of augmented maps
                     # (i.e. separately average augmented copies of Busyness maps, Autocorrelation maps, etc.)
