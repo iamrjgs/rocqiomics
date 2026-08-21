@@ -146,7 +146,7 @@ def set_geometry_info(img, geometry_info):
     img.SetDirection(direction)
     return img
 
-def _geometries_match(img1, img2, tol=1e-6):
+def geometries_match(img1, img2, tol=1e-6):
     info1 = extract_geometry_info(img1)
     info2 = extract_geometry_info(img2)
     if info1['size'] != info2['size']:
