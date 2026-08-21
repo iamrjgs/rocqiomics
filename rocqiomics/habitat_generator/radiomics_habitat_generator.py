@@ -7,6 +7,11 @@ import numpy as np
 import SimpleITK as sitk
 import rocqiomics as rq
 
+from rocqiomics.utils import (
+    resample_to_target_image,
+    geometries_match
+)
+
 from .habitat_generator import HabitatGenerator
 
 class RadiomicsHabitatGenerator:
@@ -216,6 +221,17 @@ class RadiomicsHabitatGenerator:
                     if len(augmented_copies) == 0:
                         continue
 
+                    # Bring augmented copies to the same geometry as baseline so we can average
+                    baseline = augmented_copies[0]
+                    for augmented in augmented_copies[1:]:
+                        if not geometries_match(baseline, augmented):
+                            augmented = resample_to_target_image(
+                                augmented,
+                                baseline,
+                                is_mask=False
+                            )
+                            self.logger.info('Augmented copy resampled to baseline geometry.')
+                        
                     # Perform feature-wise averaging of augmented maps
                     # (i.e. separately average augmented copies of Busyness maps, Autocorrelation maps, etc.)
                     n_features = augmented_copies[0].GetNumberOfComponentsPerPixel()
