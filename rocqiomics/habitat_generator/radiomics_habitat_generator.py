@@ -223,10 +223,10 @@ class RadiomicsHabitatGenerator:
 
                     # Bring augmented copies to the same geometry as baseline so we can average
                     baseline = augmented_copies[0]
-                    for augmented in augmented_copies[1:]:
-                        if not geometries_match(baseline, augmented):
-                            augmented = resample_to_target_image(
-                                augmented,
+                    for i in range(1, len(augmented_copies)):
+                        if not geometries_match(baseline, augmented_copies[i]):
+                            augmented_copies[i] = resample_to_target_image(
+                                augmented_copies[i],
                                 baseline,
                                 is_mask=False
                             )
