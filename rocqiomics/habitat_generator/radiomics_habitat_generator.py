@@ -125,30 +125,6 @@ class RadiomicsHabitatGenerator:
         with open(filepath, "wb") as f:
             pickle.dump(state, f)
 
-    # def save(self, filepath):
-    #     state = {
-    #         'preprocessing': self.preprocessing,
-    #         'augmentations': self.augmentations,
-    #         'features': self.features,
-    #         'filter_types': self.filter_types,
-    #         'channels': self.channels,
-    #         'algorithm': self.algorithm_name,
-    #         'n_clusters': self.n_clusters,
-    #         'batch_size': self.batch_size,
-    #         'bin_width': self.bin_width,
-    #         'bin_count': self.bin_count,
-    #         'engine': self.engine,
-    #         'voxel_based_settings': self.voxel_based_settings,
-    #         'save_vector_dirpath': self.save_vector_dirpath,
-    #         'save_fmaps_dirpath' : self.save_fmaps_dirpath,
-    #         'average_augmentations': self.average_augmentations,
-    #         'include_spatial_features' : self.include_spatial_features,
-    #         'habitat_generator_state': self.habitat_generator.prepare_state_for_saving(),
-    #     }
-
-    #     with open(filepath, "wb") as f:
-    #         pickle.dump(state, f)
-
     @classmethod
     def load_from_state(cls, state):
         obj = cls()
@@ -159,7 +135,6 @@ class RadiomicsHabitatGenerator:
             obj.habitat_generator = HabitatGenerator.load_from_state(
                 state['habitat_generator_state']
             )
-            # setattr(obj, 'habitat_generator_state', state.get('habitat_generator_state'))
         
         obj._init_map_extractor()
         
