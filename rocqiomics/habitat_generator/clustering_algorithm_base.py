@@ -19,7 +19,7 @@ class VoxelClusteringAlgorithm(ABC):
     def fit_predict(self, X):
         self.fit(X)
         X = self._apply_normalization_and_weights(X)
-        return self.model.predict(X)
+        return self.move_up_labels(self.model.predict(X))
 
     def partial_fit(self, X):
         if self.model is None:
@@ -29,8 +29,8 @@ class VoxelClusteringAlgorithm(ABC):
 
     def predict(self, X):
         X = self._apply_normalization_and_weights(X)
-        return self.model.predict(X)
-
+        return self.move_up_labels(self.model.predict(X))
+        
     def _apply_normalization_and_weights(self, X):
         if self.mean_ is not None and self.std_ is not None:
             n_int = len(self.mean_)
@@ -53,6 +53,10 @@ class VoxelClusteringAlgorithm(ABC):
             X = X * self.weights
 
         return X
+
+    @staticmethod
+    def move_up_labels(labels):
+        return np.where(labels == -1, -1, labels + 1)
 
     @abstractmethod
     def _init_model(self):

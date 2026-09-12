@@ -15,6 +15,25 @@ from rocqiomics.utils import (
 from .habitat_generator import HabitatGenerator
 
 class RadiomicsHabitatGenerator:
+    STATE_FIELDS =  [
+        "preprocessing",
+        "augmentations",
+        "features",
+        "filter_types",
+        "channels",
+        "algorithm_name",
+        "n_clusters",
+        "batch_size",
+        "bin_width",
+        "bin_count",
+        "engine",
+        "voxel_based_settings",
+        "save_vector_dirpath",
+        "save_fmaps_dirpath",
+        "average_augmentations",
+        "include_spatial_features",
+    ]
+
     def __init__(self,
                  preprocessing=None,
                  augmentations=None,
@@ -72,26 +91,6 @@ class RadiomicsHabitatGenerator:
         self.logger = self.map_extractor.logger
         self.logger.info('Radiomics Habitat Generation Pipeline Initialized.')
 
-    def __str__(self):
-        attrs = [
-            "algorithm_name",
-            "n_clusters",
-            "channels",
-            "feature_weights",
-            "spatial_weights",
-            "average_augmentations"
-        ]
-        subclasses = [
-            "habitat_generator",
-            "map_extractor",
-        ]
-        lines = [f"{attr}: {getattr(self, attr)}" for attr in attrs]
-        for scl in subclasses:
-            lines.append(f"{scl}: {getattr(self, scl)}")
-
-        return "\n".join(lines)
-
-
     def fit(self, data_dicts):
         data_dicts_for_habitats = self._generate_maps_for_habitats(data_dicts)
         self.logger.info('Feature maps generated. Now fitting habitat generator.')
@@ -121,61 +120,85 @@ class RadiomicsHabitatGenerator:
                             )
 
     def save(self, filepath):
-        state = {
-            'preprocessing': self.preprocessing,
-            'augmentations': self.augmentations,
-            'features': self.features,
-            'filter_types': self.filter_types,
-            'channels': self.channels,
-            'algorithm': self.algorithm_name,
-            'n_clusters': self.n_clusters,
-            'batch_size': self.batch_size,
-            'bin_width': self.bin_width,
-            'bin_count': self.bin_count,
-            'engine': self.engine,
-            'voxel_based_settings': self.voxel_based_settings,
-            'save_vector_dirpath': self.save_vector_dirpath,
-            'save_fmaps_dirpath' : self.save_fmaps_dirpath,
-            'average_augmentations': self.average_augmentations,
-            'include_spatial_features' : self.include_spatial_features,
-            'habitat_generator_state': self.habitat_generator.prepare_state_for_saving(),
-        }
-
+        state = {key: getattr(self, key) for key in self.STATE_FIELDS}
+        state['habitat_generator_state'] = self.habitat_generator.prepare_state_for_saving()
         with open(filepath, "wb") as f:
             pickle.dump(state, f)
+
+    # def save(self, filepath):
+    #     state = {
+    #         'preprocessing': self.preprocessing,
+    #         'augmentations': self.augmentations,
+    #         'features': self.features,
+    #         'filter_types': self.filter_types,
+    #         'channels': self.channels,
+    #         'algorithm': self.algorithm_name,
+    #         'n_clusters': self.n_clusters,
+    #         'batch_size': self.batch_size,
+    #         'bin_width': self.bin_width,
+    #         'bin_count': self.bin_count,
+    #         'engine': self.engine,
+    #         'voxel_based_settings': self.voxel_based_settings,
+    #         'save_vector_dirpath': self.save_vector_dirpath,
+    #         'save_fmaps_dirpath' : self.save_fmaps_dirpath,
+    #         'average_augmentations': self.average_augmentations,
+    #         'include_spatial_features' : self.include_spatial_features,
+    #         'habitat_generator_state': self.habitat_generator.prepare_state_for_saving(),
+    #     }
+
+    #     with open(filepath, "wb") as f:
+    #         pickle.dump(state, f)
+
+    @classmethod
+    def load_from_state(cls, state):
+        obj = cls()
+        for field in cls.STATE_FIELDS:
+            setattr(obj, field, state.get(field))
+            
+        if 'habitat_generator_state' in state:
+            obj.habitat_generator = HabitatGenerator.load_from_state(
+                state['habitat_generator_state']
+            )
+            # setattr(obj, 'habitat_generator_state', state.get('habitat_generator_state'))
+        
+        obj._init_map_extractor()
+        
+        return obj
 
     @classmethod
     def load(cls, filepath):
         with open(filepath, "rb") as f:
             state = pickle.load(f)
 
-        obj = cls(
-            preprocessing=state['preprocessing'],
-            augmentations=state['augmentations'],
-            features=state['features'],
-            filter_types=state['filter_types'],
-            algorithm=state['algorithm'],
-            n_clusters=state['n_clusters'],
-            batch_size=state['batch_size'],
-            bin_width=state['bin_width'],
-            bin_count=state['bin_count'],
-            engine=state['engine'],
-            voxel_based_settings=state['voxel_based_settings'],
-            save_vector_dirpath=state['save_vector_dirpath'],
-            save_fmaps_dirpath=state['save_fmaps_dirpath'],
-            average_augmentations=state['average_augmentations'],
-            include_spatial_features=state['include_spatial_features']
-        )
+        obj = cls.load_from_state(state)
 
-        obj.channels = state['channels']
+        # obj = cls(
+        #     preprocessing=state['preprocessing'],
+        #     augmentations=state['augmentations'],
+        #     features=state['features'],
+        #     filter_types=state['filter_types'],
+        #     algorithm=state['algorithm'],
+        #     n_clusters=state['n_clusters'],
+        #     batch_size=state['batch_size'],
+        #     bin_width=state['bin_width'],
+        #     bin_count=state['bin_count'],
+        #     engine=state['engine'],
+        #     voxel_based_settings=state['voxel_based_settings'],
+        #     save_vector_dirpath=state['save_vector_dirpath'],
+        #     save_fmaps_dirpath=state['save_fmaps_dirpath'],
+        #     average_augmentations=state['average_augmentations'],
+        #     include_spatial_features=state['include_spatial_features']
+        # )
 
-        obj.habitat_generator = HabitatGenerator.load_from_state(
-            state['habitat_generator_state']
-        )
+        # obj.channels = state['channels']
 
-        obj.habitat_generator.channels = obj.channels
+        # obj.habitat_generator = HabitatGenerator.load_from_state(
+        #     state['habitat_generator_state']
+        # )
 
-        obj._init_map_extractor()
+        # obj.habitat_generator.channels = obj.channels
+
+        # obj._init_map_extractor()
 
         return obj
     
@@ -393,3 +416,22 @@ class RadiomicsHabitatGenerator:
     def filter_feature_class_name(k):
         tokens = k.split('_')
         return tokens[0] + '_' + tokens[-1]
+
+    def __str__(self):
+        attrs = [
+            "algorithm_name",
+            "n_clusters",
+            "channels",
+            "feature_weights",
+            "spatial_weights",
+            "average_augmentations"
+        ]
+        subclasses = [
+            "habitat_generator",
+            "map_extractor",
+        ]
+        lines = [f"{attr}: {getattr(self, attr)}" for attr in attrs]
+        for scl in subclasses:
+            lines.append(f"{scl}: {getattr(self, scl)}")
+
+        return "\n".join(lines)

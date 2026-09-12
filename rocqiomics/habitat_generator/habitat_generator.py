@@ -31,6 +31,25 @@ class HabitatGenerator:
         "cmeans" : FuzzyCMeansClustering,
         "fuzzy_c_means" : FuzzyCMeansClustering
     }
+    STATE_FIELDS = [
+            "channels",
+            "batch_size",
+            "normalize",
+            "mean_",
+            "std_",
+            "min_",
+            "max_",
+            "algorithm_name",
+            "algorithm_kwargs",
+            "n_clusters",
+            "algorithm",
+            "include_spatial_features",
+            "channel_weights",
+            "spatial_weights",
+            "weights",
+            "fitted",
+            "bic"
+        ]
 
     def __init__(self,
                  channels,
@@ -123,7 +142,7 @@ class HabitatGenerator:
 
         return self
     
-    def predict(self, data, return_as_sitk_image=False):
+    def predict(self, data, return_as_sitk_image=True):
         if isinstance(data[0], np.ndarray):
             data = [{
                 'image' : d,
@@ -139,12 +158,12 @@ class HabitatGenerator:
 
             vox, mask_flat = self._prepare_feature_vector(img, mask, geometry_info=geometry_info)
 
-            labels = np.full(mask.shape, np.nan)
+            labels = np.full(mask.shape, 0)
             if vox.size > 0:
                 pred_flat = self.algorithm.predict(vox)
                 labels_flat = labels.reshape(-1)
                 labels_flat[mask_flat] = pred_flat
-                labels = labels_flat.reshape(mask.shape)
+                labels = labels_flat.reshape(mask.shape).astype(int)
 
             if return_as_sitk_image:
                 labels = sitk.GetImageFromArray(labels)
@@ -154,27 +173,14 @@ class HabitatGenerator:
                 
         return outputs
 
-    def fit_predict(self, data, return_as_sitk_image=False):
+    def fit_predict(self, data, return_as_sitk_image=True):
         self.fit(data)
         return self.predict(data, return_as_sitk_image=return_as_sitk_image)
     
     def prepare_state_for_saving(self):
         if self.algorithm is None:
             raise ValueError("Cannot save an unfitted model (algorithm is None).")
-        return {
-            'channels': self.channels,
-            'batch_size': self.batch_size,
-            'normalize': self.normalize,
-            'mean_': self.mean_,
-            'std_': self.std_,
-            'algorithm_name': self.algorithm_name,
-            'algorithm_kwargs': self.algorithm_kwargs,
-            'n_clusters': self.n_clusters,
-            'algorithm': self.algorithm,
-            'include_spatial_features': self.include_spatial_features,
-            'channel_weights' : self.channel_weights,
-            'spatial_weights' : self.spatial_weights
-        }
+        return {key: getattr(self, key) for key in self.STATE_FIELDS}
     
     def save(self, filepath):
         state = self.prepare_state_for_saving()
@@ -184,27 +190,18 @@ class HabitatGenerator:
     @classmethod
     def load_from_state(cls, state):
         obj = cls(
-            channels=state['channels'],
-            algorithm=state['algorithm_name'],
-            n_clusters=state['n_clusters'],
-            batch_size=state['batch_size'],
-            normalize=state['normalize'],
-            include_spatial_features=state.get('include_spatial_features', False),
-            channel_weights=state.get('channel_weights'),
-            spatial_weights=state.get('spatial_weights'),
-            **state['algorithm_kwargs'],
+            channels=state.get('channels'),
+            algorithm=state.get('algorithm'),
         )
-
-        obj.mean_ = state['mean_']
-        obj.std_ = state['std_']
-        obj.algorithm = state['algorithm']
-
+        for field in cls.STATE_FIELDS:
+            setattr(obj, field, state.get(field))
         return obj
     
-    def load(self, cls, filepath):
+    @classmethod
+    def load(cls, filepath):
         with open(filepath, "rb") as f:
             state = pickle.load(f)
-        return self.load_from_state(cls, state)
+        return cls.load_from_state(state)
     
     def _load_image_as_sitk(self, dd):
         if 'image' not in dd:
@@ -215,10 +212,10 @@ class HabitatGenerator:
 
         if isinstance(image, np.ndarray):
             image = sitk.GetImageFromArray(image)
-        if isinstance(image, sitk.Image):
-            geometry_info = extract_geometry_info(image)
         if isinstance(image, str):
             image = sitk.ReadImage(image)
+        
+        if isinstance(image, sitk.Image):
             geometry_info = extract_geometry_info(image)
 
         mask = dd['mask'] if 'mask' in dd else self.full_mask_from_image(image)
