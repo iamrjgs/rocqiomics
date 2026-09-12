@@ -467,3 +467,19 @@ class HabitatGenerator:
         mask = sitk.Add(mask, 1)
         mask.CopyInformation(image)
         return mask
+
+    def __str__(self):
+        attrs = [
+            "channels",
+            "batch_size",
+            "normalize",
+            "algorithm_name",
+            "mean_",
+            "std_",
+            "min_",
+            "max_",
+            "fitted",
+            "algorithm"
+        ]
+        lines = [f"{attr}: {getattr(self, attr)}" for attr in attrs]
+        return "\n".join(lines)

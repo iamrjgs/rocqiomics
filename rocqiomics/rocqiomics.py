@@ -657,4 +657,14 @@ class Rocqiomics:
     def __len__(self):
         return len(self.dataset)
 
-
+    def __str__(self):
+        attrs = [
+            "engine",
+            "features",
+            "feature_classes",
+            "voxel_based_settings",
+            "bin_width",
+            "bin_count",
+        ]
+        lines = [f"{attr}: {getattr(self, attr)}" for attr in attrs]
+        return "\n".join(lines)

@@ -65,10 +65,32 @@ class RadiomicsHabitatGenerator:
         # These are set from the data
         self.channels = None
         self.habitat_generator = None
-
+        
+        self.map_extractor = None
         self._init_map_extractor()
+
         self.logger = self.map_extractor.logger
         self.logger.info('Radiomics Habitat Generation Pipeline Initialized.')
+
+    def __str__(self):
+        attrs = [
+            "algorithm_name",
+            "n_clusters",
+            "channels",
+            "feature_weights",
+            "spatial_weights",
+            "average_augmentations"
+        ]
+        subclasses = [
+            "habitat_generator",
+            "map_extractor",
+        ]
+        lines = [f"{attr}: {getattr(self, attr)}" for attr in attrs]
+        for scl in subclasses:
+            lines.append(f"{scl}: {getattr(self, scl)}")
+
+        return "\n".join(lines)
+
 
     def fit(self, data_dicts):
         data_dicts_for_habitats = self._generate_maps_for_habitats(data_dicts)
