@@ -48,18 +48,18 @@ class PyradiomicsExtractor(FeatureExtractionEngine):
         **kwargs,
     ):
         extractor = radiomics.featureextractor.RadiomicsFeatureExtractor()
-        self.all_features = self.get_all_pyradiomics_features()
-        self.all_feature_classes = self.get_all_pyradiomics_feature_classes()
 
         if extraction_settings_yaml_filepath is not None:
             extractor.loadParams(paramsFile=extraction_settings_yaml_filepath)
             return extractor
 
-        feature_classes = self.all_feature_classes if feature_classes is None else feature_classes
         filter_types = ["Original"] if filter_types is None else filter_types
+        image_type_params = {ft: filter_settings.get(ft, {}) for ft in filter_types}
+
+        all_feature_classes = self.get_all_pyradiomics_feature_classes()
+        feature_classes = all_feature_classes if feature_classes is None else feature_classes
 
         feature_class_params = {fc: [] for fc in feature_classes}
-        image_type_params = {ft: filter_settings.get(ft, {}) for ft in filter_types}
 
         params_dict = {
             "featureClass": feature_class_params,
@@ -95,12 +95,28 @@ class PyradiomicsExtractor(FeatureExtractionEngine):
 
         if features is not None:
             extractor.disableAllFeatures()
-            enabled = {cl: [] for cl in self.all_feature_classes}
+            enabled = {cl: [] for cl in all_feature_classes}
+
+            all_features = self.get_all_pyradiomics_features()
+
             for feat in features:
-                full = [f for f in self.all_features if feat in f][0]
-                fclass = full.split("_")[0]
-                enabled[fclass].append(feat)
-            enabled = {k: v for k, v in enabled.items() if v}
+                # If feature is already given as {feature_class}_{feature_name}, feed it directly
+                if '_' in feat and feat in all_features:
+                    matching_cases = [feat]
+
+                # Otherwise, if only feature name is given (no glcm, for example), add all features with that name
+                # from all enabled classes
+                else:
+                    matching_cases = [f for f in all_features if feat == f.split('_')[-1]]
+                   
+                matching_cases = [f for f in matching_cases if f.split('_')[-2] in feature_classes]
+                
+                for mcase in matching_cases:
+                    fclass = mcase.split('_')[-2]
+                    fname = mcase.split('_')[-1]
+                    enabled[fclass].append(fname)
+
+            enabled = {k:v for k, v in enabled.items() if v}
             extractor.enableFeaturesByName(**enabled)
 
         return extractor
@@ -116,9 +132,10 @@ class PyradiomicsExtractor(FeatureExtractionEngine):
     @staticmethod
     def get_all_pyradiomics_features():
         out = []
-        for name, cl in getFeatureClasses().items():
-            for f in cl.getFeatureNames().keys():
-                out.append(f"{name}_{f}")
+        for class_name, fclass in getFeatureClasses().items():
+            for feature, is_deprecated in fclass.getFeatureNames().items():
+                if not is_deprecated:
+                    out.append(f"{class_name}_{feature}")
         return out
 
     @staticmethod

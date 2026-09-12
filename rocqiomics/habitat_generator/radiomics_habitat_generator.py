@@ -73,6 +73,7 @@ class RadiomicsHabitatGenerator:
     def fit(self, data_dicts):
         data_dicts_for_habitats = self._generate_maps_for_habitats(data_dicts)
         self.logger.info('Feature maps generated. Now fitting habitat generator.')
+        
         self.habitat_generator.fit(data_dicts_for_habitats)
         self.logger.info('Habitat generator fitting done.')
 
@@ -80,8 +81,10 @@ class RadiomicsHabitatGenerator:
     def predict(self, data_dicts, return_as_sitk_image=False, save_habitats_dirpath=None):
         data_dicts_for_habitats = self._generate_maps_for_habitats(data_dicts)
         self.logger.info('Feature maps generated. Now predicting habitats.')
+        
         predictions = self.habitat_generator.predict(data_dicts_for_habitats, return_as_sitk_image=return_as_sitk_image)
         self.logger.info('Habitat predictions done.')
+        
         if save_habitats_dirpath is not None:
             for dd, pred in zip(data_dicts, predictions):
                 self._save_habitat_map(pred, dd, save_habitats_dirpath=save_habitats_dirpath)
@@ -301,8 +304,8 @@ class RadiomicsHabitatGenerator:
         else:
             if feature_names != self.channels:
                 raise ValueError(
-                    f"Inconsistent channels detected.\n"
-                    f"Expected: {self.channels}\n"
+                    f"Inconsistent channels detected.\n\n"
+                    f"Expected: {self.channels}\n\n"
                     f"Got: {feature_names}"
                 )
         return feature_names, fmaps

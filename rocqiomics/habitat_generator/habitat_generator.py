@@ -67,6 +67,7 @@ class HabitatGenerator:
 
         self.algorithm = None # Prepared later
         self.fitted = False
+        self.bic = None
 
         self._coord_cache = {} # Avoid recomputing coord meshgrid when including spatial features
 
@@ -106,6 +107,12 @@ class HabitatGenerator:
             if i == 0:
                 self.algorithm.fit(X)
                 self.fitted = True
+
+                if getattr(self.algorithm.model, "bic", None) is not None:
+                    try:
+                        self.bic = self.algorithm.model.bic(X)
+                    except Exception:
+                        print("BIC computation failed.")
             else:
                 self.algorithm.partial_fit(X)
 

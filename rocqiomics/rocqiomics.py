@@ -14,6 +14,8 @@ import monai
 import torch
 
 from rocqiomics.input_validation import get_input_validation_tests
+from rocqiomics.extraction_engines.engine_map import MAP_ENGINE
+from rocqiomics.extraction_engines.pyradiomics import PyradiomicsExtractor
 from rocqiomics.utils import (
     tensor_to_sitk,
     split_dataframe_by_unique_values_in_columns,
@@ -147,8 +149,8 @@ class Rocqiomics:
         self.filter_types: List[str] = filter_types or ["Original"]
         self.filter_settings: Dict = filter_settings or {"Original" : {}}
         self.filter_settings = {k:v for k,v in self.filter_settings.items() if k in self.filter_types}
-        self._set_feature_classes(feature_classes)
-        self.features = features
+        self._set_feature_classes_and_features(feature_classes, features)
+        
         if voxel_based_settings is None:
             self.voxel_based_settings = {
                 'kernelRadius' : 1,
@@ -169,7 +171,6 @@ class Rocqiomics:
             self.logger.warning('Bin width and bin count are both set. Bin width will be used by default.')
 
         # Set radiomics feature extractor
-        from rocqiomics.extraction_engines.engine_map import MAP_ENGINE
         self.extractor = MAP_ENGINE(self.engine)(
             label=self.label,
             voxel_based=self.voxel_based,
@@ -184,6 +185,37 @@ class Rocqiomics:
             filter_settings=self.filter_settings,
             extraction_settings_yaml_filepath=extraction_settings_yaml_filepath,
         )
+
+    def run_case(self, idx, case, load_time=None):
+        # Get loaded, preprocessed, and (potentially) augmented data
+        case_id, image, mask, metadata = (
+            case.get(self.id_col, ''),
+            case.get("image"),
+            case.get("mask"),
+            case.get("metadata", {}),
+        )
+                
+        # Extract feature vector or map depending on voxel_based extraction mode
+        start_time = time.perf_counter()
+        extraction_results = self.extractor.extract(image, mask)
+        extraction_time = time.perf_counter() - start_time
+
+        # Handle results metadata addition and/or saving depending on voxel_based extraction mode
+        if self.voxel_based:
+            result = self._handle_feature_map(case_id, extraction_results, metadata, image)
+        else:
+            result = self._handle_feature_vectors(case_id, extraction_results, metadata)
+
+        # Log results
+        self._log_case_data(idx, case, extraction_time, load_time)
+
+        return {
+            'result' : result,
+            self.id_col : case_id,
+            'image' : image,
+            'mask' : mask,
+            'metadata' : metadata
+        }
 
     def run_pipeline(self, data_dicts=None, case_ids=None):
         """
@@ -200,7 +232,7 @@ class Rocqiomics:
 
         for idx, (case, load_time) in enumerate(self.dataset):
             try:
-                results_dict = self._run_case(idx, case, load_time)
+                results_dict = self.run_case(idx, case, load_time)
                 self.results.append(results_dict['result'])
             except Exception as e:
                 self._handle_case_error(case=case, error=e)
@@ -226,7 +258,7 @@ class Rocqiomics:
 
         for idx, (case, load_time) in enumerate(self.dataset):
             try:
-                yield self._run_case(idx, case, load_time)
+                yield self.run_case(idx, case, load_time)
             except Exception as e:
                 self._handle_case_error(case=case, error=e)
 
@@ -313,36 +345,8 @@ class Rocqiomics:
             self.save_tabular_dataset(df, filepath)
             self.logger.info(f'Results saved to {filepath}')
 
-    def _run_case(self, idx, case, load_time=None):
-        # Get loaded, preprocessed, and (potentially) augmented data
-        case_id, image, mask, metadata = (
-            case.get(self.id_col, ''),
-            case.get("image"),
-            case.get("mask"),
-            case.get("metadata", {}),
-        )
-                
-        # Extract feature vector or map depending on voxel_based extraction mode
-        start_time = time.perf_counter()
-        extraction_results = self.extractor.extract(image, mask)
-        extraction_time = time.perf_counter() - start_time
-
-        # Handle results metadata addition and/or saving depending on voxel_based extraction mode
-        if self.voxel_based:
-            result = self._handle_feature_map(case_id, extraction_results, metadata, image)
-        else:
-            result = self._handle_feature_vectors(case_id, extraction_results, metadata)
-
-        # Log results
-        self._log_case_data(idx, case, extraction_time, load_time)
-
-        return {
-            'result' : result,
-            self.id_col : case_id,
-            'image' : image,
-            'mask' : mask,
-            'metadata' : metadata
-        }
+    def get_all_pyradiomics_features(self):
+        return PyradiomicsExtractor().get_all_pyradiomics_features()
     
     def _initialize_dataset(self, data_dicts, case_ids=None):
         # Validate and set list of input data dicts
@@ -367,6 +371,7 @@ class Rocqiomics:
             raise ValueError("Dataset failed to initialize.")
 
         self.logger.info(f'Extraction Pipeline Initialized | Engine: {self.engine} | Cases: {len(self)} | Excluded cases: {len(self.get_excluded_cases())}')
+        self.logger.info(f'Features: {len(self.features)}\t Feature classes: {self.feature_classes}\tFilter types: {self.filter_types}')
 
     def _initialize_data_dicts(self,
                                data_dicts: Optional[List[Dict]],
@@ -494,14 +499,32 @@ class Rocqiomics:
     def _set_device(self, device):
         return torch.device('cuda' if (torch.cuda.is_available() and (device == 'cuda')) else 'cpu')
 
-    def _set_feature_classes(self, feature_classes=None):
+    def _set_feature_classes_and_features(self, feature_classes=None, features=None):
         classes = feature_classes or ["shape", "firstorder", "glcm", "gldm", "glrlm", "glszm", "ngtdm"]
-        # Handle shape case when image is 2D
-        if "shape" in classes:
-            if self.force_2D:
-                classes = ["shape2D" if f == "shape" else f for f in classes]
+        classes = ["shape2D" if f == "shape" else f for f in classes] if self.force_2D else classes
         self.feature_classes = classes
 
+        all_features = self.get_all_pyradiomics_features()
+        if features is None:
+            self.features = all_features
+        else:
+            selected_feats = []
+            for feat in features:
+
+                # If feature is already given as {feature_class}_{feature_name}, feed it directly
+                if '_' in feat and feat in all_features:
+                    if feat.split('_')[-2] in self.feature_classes:
+                        selected_feats.append(feat)
+
+                # Otherwise, if only feature name is given (no glcm, for example), add all features with that name
+                # from all enabled classes
+                else:
+                    matching_cases = [f for f in all_features if feat == f.split('_')[-1]]
+                    matching_cases = [f for f in matching_cases if f.split('_')[-2] in self.feature_classes]
+                    selected_feats.extend(matching_cases)
+
+            self.features = selected_feats
+        
     def _validate_input_data_and_exclude_cases_with_errors(self, data_dicts):
         excluded_cases = []
         tests = get_input_validation_tests()
