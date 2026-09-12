@@ -99,7 +99,7 @@ class RadiomicsHabitatGenerator:
         self.logger.info('Habitat generator fitting done.')
 
 
-    def predict(self, data_dicts, return_as_sitk_image=False, save_habitats_dirpath=None):
+    def predict(self, data_dicts, return_as_sitk_image=True, save_habitats_dirpath=None):
         data_dicts_for_habitats = self._generate_maps_for_habitats(data_dicts)
         self.logger.info('Feature maps generated. Now predicting habitats.')
         
@@ -112,7 +112,7 @@ class RadiomicsHabitatGenerator:
 
         return predictions, data_dicts_for_habitats
 
-    def fit_predict(self, data_dicts, return_as_sitk_image=False, save_habitats_dirpath=None):
+    def fit_predict(self, data_dicts, return_as_sitk_image=True, save_habitats_dirpath=None):
         self.fit(data_dicts)
         return self.predict(data_dicts,
                             return_as_sitk_image=return_as_sitk_image,
@@ -169,38 +169,7 @@ class RadiomicsHabitatGenerator:
     def load(cls, filepath):
         with open(filepath, "rb") as f:
             state = pickle.load(f)
-
-        obj = cls.load_from_state(state)
-
-        # obj = cls(
-        #     preprocessing=state['preprocessing'],
-        #     augmentations=state['augmentations'],
-        #     features=state['features'],
-        #     filter_types=state['filter_types'],
-        #     algorithm=state['algorithm'],
-        #     n_clusters=state['n_clusters'],
-        #     batch_size=state['batch_size'],
-        #     bin_width=state['bin_width'],
-        #     bin_count=state['bin_count'],
-        #     engine=state['engine'],
-        #     voxel_based_settings=state['voxel_based_settings'],
-        #     save_vector_dirpath=state['save_vector_dirpath'],
-        #     save_fmaps_dirpath=state['save_fmaps_dirpath'],
-        #     average_augmentations=state['average_augmentations'],
-        #     include_spatial_features=state['include_spatial_features']
-        # )
-
-        # obj.channels = state['channels']
-
-        # obj.habitat_generator = HabitatGenerator.load_from_state(
-        #     state['habitat_generator_state']
-        # )
-
-        # obj.habitat_generator.channels = obj.channels
-
-        # obj._init_map_extractor()
-
-        return obj
+        return cls.load_from_state(state)
     
     def _generate_maps_for_habitats(self, data_dicts):
         # Run map_extractor generator to calculate maps dynamically (memory-efficient)
