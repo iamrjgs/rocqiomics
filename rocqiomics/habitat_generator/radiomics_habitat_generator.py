@@ -278,7 +278,9 @@ class RadiomicsHabitatGenerator:
         )
     
     def _check_or_set_channels(self, map_dict):
-        map_dict = {self.filter_feature_class_name(k):v for k,v in map_dict.items()}
+        # DEPRECATED STEP | SOME LEGACY MODELS (VitD) REQUIRE
+        # map_dict = {self.filter_feature_class_name(k):v for k,v in map_dict.items()}
+
         items = sorted(map_dict.items())
 
         if not items:

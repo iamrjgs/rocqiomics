@@ -371,7 +371,7 @@ class Rocqiomics:
             raise ValueError("Dataset failed to initialize.")
 
         self.logger.info(f'Extraction Pipeline Initialized | Engine: {self.engine} | Cases: {len(self)} | Excluded cases: {len(self.get_excluded_cases())}')
-        self.logger.info(f'Features: {len(self.features)}\t Feature classes: {self.feature_classes}\tFilter types: {self.filter_types}')
+        self.logger.info(f'Features: {len(self.features)}\t Feature classes: {self.feature_classes}\t Filter types: {self.filter_types}')
 
     def _initialize_data_dicts(self,
                                data_dicts: Optional[List[Dict]],
