@@ -45,12 +45,14 @@ class AugmentedDataset(monai.data.Dataset):
         image_index = idx // (self.num_augmentations + 1)
         aug_index = idx % (self.num_augmentations + 1)
 
+        # Load image/mask (either from disk or cache)
         if image_index in self.cached_data:
             base_data = self.cached_data[image_index]
         else:
             base_data = self.load_transform(self.data[image_index])
             self._update_cached_data(image_index, base_data)
         
+        # Copy to avoid downstream effects
         loaded_data = copy.deepcopy(base_data)
  
         # Add metadata
@@ -68,18 +70,17 @@ class AugmentedDataset(monai.data.Dataset):
 
             loaded_data['metadata'] = metadata
         
-        transform = None
+        # Define and apply transforms based on preprocessing and augmentation fields
+        transforms = []
+
         if aug_index > 0:
-            transform = self.augmentations[aug_index - 1]
+            transforms.append(self.augmentations[aug_index - 1])
 
         if self.preprocessing is not None:
-            if transform is None:
-                transform = self.preprocessing
-            else:
-                transform = Compose([transform, self.preprocessing])
+            transforms.append(self.preprocessing)
 
-        if transform is not None:
-            loaded_data = transform(loaded_data)
+        if transforms:
+            loaded_data = Compose(transforms)(loaded_data)
 
         return loaded_data
 
