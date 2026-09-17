@@ -114,6 +114,8 @@ class Rocqiomics:
         self.dataset = None
         self.excluded_cases: List[str] = []
         self.runtime_errors: List[str] = []
+        self.total_load_time: float = 0.0
+        self.total_extraction_time: float = 0.0
 
         # Set pipeline settings
         self.label: int = label
@@ -237,6 +239,8 @@ class Rocqiomics:
             except Exception as e:
                 self._handle_case_error(case=case, error=e)
 
+        self.logger.info(f'All cases done. Load time: {self.total_load_time:.1f} s. Extraction time: {self.total_extraction_time:.1f} s.')
+
         # Handle results saving when not extracting feature maps (those are handled separately)
         if not self.voxel_based and self.save_results:
             self.save_results_df()
@@ -261,6 +265,8 @@ class Rocqiomics:
                 yield self.run_case(idx, case, load_time)
             except Exception as e:
                 self._handle_case_error(case=case, error=e)
+
+        self.logger.info(f'All cases done. Load time: {self.total_load_time:.1f} s. Extraction time: {self.total_extraction_time:.1f} s.')
 
     def get_data_dicts(self):
         return self.data_dicts
@@ -596,9 +602,10 @@ class Rocqiomics:
 
         return logger_obj
     
-    def _log_case_data(self, idx, case, extraction_time, load_time):
+    def _log_case_data(self, idx, case, extraction_time, load_time=None):
         log_data = []
         last_idx = len(self) - 1
+        load_time = load_time if load_time is not None else 0.0
 
         if self.id_col in case.keys():
             log_data.append(f'{self.id_col}: {case[self.id_col]}')
@@ -613,6 +620,9 @@ class Rocqiomics:
         log_txt = '\t'.join(log_data)
 
         runtime = load_time + extraction_time
+
+        self.total_load_time += load_time
+        self.total_extraction_time += extraction_time
         
         self.logger.info(f'Case {idx}/{last_idx} done in {runtime:.2f}s. \t{log_txt}')
         self.logger.debug(case)

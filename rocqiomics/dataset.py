@@ -1,6 +1,8 @@
 import copy
-import monai
 import time
+
+import monai
+from monai.transforms import Compose
 
 class AugmentedDataset(monai.data.Dataset):
     """
@@ -27,12 +29,14 @@ class AugmentedDataset(monai.data.Dataset):
     set load_transform as the loading transform and put all other transforms in preprocessing.
     """
 
-    def __init__(self, data, load_transform, preprocessing=None, augmentations=None):
+    def __init__(self, data, load_transform, preprocessing=None, augmentations=None, cache_limit=1):
         self.data = data
         self.load_transform = load_transform
         self.preprocessing = preprocessing
         self.augmentations = augmentations if augmentations is not None else []
-        self.num_augmentations = len(augmentations)
+        self.num_augmentations = len(self.augmentations)
+        self.cached_data = {}
+        self.cache_limit = cache_limit
     
     def __len__(self):
         return len(self.data) * (self.num_augmentations + 1)
@@ -41,24 +45,19 @@ class AugmentedDataset(monai.data.Dataset):
         image_index = idx // (self.num_augmentations + 1)
         aug_index = idx % (self.num_augmentations + 1)
 
-        base_data = self.load_transform(self.data[image_index])
-
-        # Apply augmentation if needed
-        if aug_index > 0:
-            loaded_data = copy.deepcopy(base_data)
-            loaded_data = self.augmentations[aug_index - 1](loaded_data)
+        if image_index in self.cached_data:
+            base_data = self.cached_data[image_index]
         else:
-            loaded_data = base_data    
-    
+            base_data = self.load_transform(self.data[image_index])
+            self._update_cached_data(image_index, base_data)
+        
+        loaded_data = copy.deepcopy(base_data)
+ 
         # Add metadata
         if isinstance(loaded_data, dict):
-            loaded_data = dict(loaded_data)
             metadata = dict(loaded_data.get('metadata', {}))
-
-            # Store augmentation index
             metadata['augmentation'] = aug_index
            
-            # Extract original entry
             original_entry = self.data[image_index]
 
             if isinstance(original_entry, dict):
@@ -66,18 +65,31 @@ class AugmentedDataset(monai.data.Dataset):
                 for key, value in original_entry.items():
                     if 'image' in key or 'mask' in key:
                         metadata[f"{key}_path"] = value
-            else:
-                # Fallback if data is just a path string
-                metadata["image_path"] = original_entry
 
             loaded_data['metadata'] = metadata
-
-        # Preprocess image/mask data
-        if self.preprocessing is not None:
-            loaded_data = self.preprocessing(loaded_data)
         
+        transform = None
+        if aug_index > 0:
+            transform = self.augmentations[aug_index - 1]
+
+        if self.preprocessing is not None:
+            if transform is None:
+                transform = self.preprocessing
+            else:
+                transform = Compose([transform, self.preprocessing])
+
+        if transform is not None:
+            loaded_data = transform(loaded_data)
+
         return loaded_data
 
+    def _update_cached_data(self, image_index, loaded_data):
+        if len(self.cached_data) >= self.cache_limit:
+            first_key = next(iter(self.cached_data))
+            del self.cached_data[first_key]
+
+        self.cached_data[image_index] = loaded_data
+        
 
 class TimedAugmentedDataset(AugmentedDataset):
     """
