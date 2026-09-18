@@ -508,6 +508,8 @@ class Rocqiomics:
     def _set_feature_classes_and_features(self, feature_classes=None, features=None):
         classes = feature_classes or ["shape", "firstorder", "glcm", "gldm", "glrlm", "glszm", "ngtdm"]
         classes = ["shape2D" if f == "shape" else f for f in classes] if self.force_2D else classes
+        if self.voxel_based:
+            classes = [c for c in classes if 'shape' not in c]
         self.feature_classes = classes
 
         all_features = self.get_all_pyradiomics_features()
@@ -516,7 +518,6 @@ class Rocqiomics:
         else:
             selected_feats = []
             for feat in features:
-
                 # If feature is already given as {feature_class}_{feature_name}, feed it directly
                 if '_' in feat and feat in all_features:
                     if feat.split('_')[-2] in self.feature_classes:
