@@ -576,6 +576,10 @@ class Rocqiomics:
         console_handler.setFormatter(formatter)
         logger_obj.addHandler(console_handler)
 
+        class IgnoreGLCMWarning(logging.Filter):
+            def filter(self, record):
+                return "GLCM is symmetrical" not in record.getMessage()
+
         for name in [
             'radiomics',
             'radiomics.generalinfo',
@@ -598,6 +602,7 @@ class Rocqiomics:
             formatter = logging.Formatter(f"{self.engine} %(levelname)s:\t %(message)s")
             console_handler.setFormatter(formatter)
             extractor_logger.addHandler(console_handler)
+            extractor_logger.addFilter(IgnoreGLCMWarning())
 
         logging.getLogger("py.warnings").setLevel(logging.ERROR)
 
