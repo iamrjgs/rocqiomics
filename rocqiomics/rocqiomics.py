@@ -52,7 +52,7 @@ class Rocqiomics:
                 save_results: bool=True,
                 save_dirpath: Optional[str]=None,
                 save_suffix: str="",
-                save_extension: str="xlsx",
+                save_extension: str="csv",
                 save_results_to_existing_file: bool=False,
                 save_by_columns: Optional[List[str]]=None,
                 ):   
